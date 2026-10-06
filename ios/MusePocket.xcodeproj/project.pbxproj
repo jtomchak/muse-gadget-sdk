@@ -10,6 +10,7 @@
 		08AB6D5DC6E0627B4FC45261 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 03A38515177745BA2B515DF9 /* Assets.xcassets */; };
 		27D4C766BC012B4A6852B10F /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78D64F4C708C1F76C09A80EA /* Keychain.swift */; };
 		3505B035BE66ECAF2E1497F6 /* MusePocketCore in Frameworks */ = {isa = PBXBuildFile; productRef = 42935D1B51879A75D936129B /* MusePocketCore */; };
+		401BA70B26209446637E8C68 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B10F311DE07E65DF40B70E8D /* PrivacyInfo.xcprivacy */; };
 		521C42A4BB4A9AF210F89526 /* MusePocketApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71E4C2B6D45DA2D3FA752DF4 /* MusePocketApp.swift */; };
 		6BD3427B08AD58F8A99AC02C /* AssistantService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 835D887F4D0B7634E66E3ECA /* AssistantService.swift */; };
 		8271CEF8DD11ED6CE4BBF899 /* NativeServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5CEED544885C63E4159F557 /* NativeServices.swift */; };
@@ -49,6 +50,7 @@
 		78D64F4C708C1F76C09A80EA /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
 		835D887F4D0B7634E66E3ECA /* AssistantService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantService.swift; sourceTree = "<group>"; };
 		83CFD0E95552914D442A4014 /* PocketStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PocketStore.swift; sourceTree = "<group>"; };
+		B10F311DE07E65DF40B70E8D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B84E6FF8E9F7DD3EFABF8882 /* MusePocketTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = MusePocketTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BC61AECA0980FC291797EDD3 /* PocketStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PocketStoreTests.swift; sourceTree = "<group>"; };
 		D5CEED544885C63E4159F557 /* NativeServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeServices.swift; sourceTree = "<group>"; };
@@ -110,6 +112,7 @@
 			isa = PBXGroup;
 			children = (
 				03A38515177745BA2B515DF9 /* Assets.xcassets */,
+				B10F311DE07E65DF40B70E8D /* PrivacyInfo.xcprivacy */,
 			);
 			name = Resources;
 			path = MusePocket/Resources;
@@ -246,6 +249,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				08AB6D5DC6E0627B4FC45261 /* Assets.xcassets in Resources */,
+				401BA70B26209446637E8C68 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

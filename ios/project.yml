@@ -24,6 +24,8 @@ targets:
       path: MusePocket/Info.plist
       properties:
         CFBundleDisplayName: MusePocket
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UIBackgroundModes: [bluetooth-central]

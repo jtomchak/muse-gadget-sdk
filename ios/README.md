@@ -130,3 +130,21 @@ See [the wire protocol](../docs/musepocket-protocol.md) and
 
 Software test results and reproduction commands are recorded in
 [the validation report](../docs/musepocket-validation.md).
+
+## TestFlight release
+
+Release version and build are taken from Xcode's `MARKETING_VERSION` and
+`CURRENT_PROJECT_VERSION`. The bundled privacy manifest declares app-local
+preferences and elapsed time used to expire Bluetooth frame assemblies.
+
+Before archiving or uploading, verify the selected App Store Connect provider and
+its corresponding Apple Developer signing team. The numeric App Store Connect
+provider ID and Xcode's alphanumeric signing team ID are different identifiers;
+a matching account name alone does not establish their relationship.
+
+Sign in to App Store Connect, create or verify the app record for
+`com.jtomchak.musepocket`, and confirm the provider. Then archive with a verified
+`DEVELOPMENT_TEAM`, Release configuration and automatic signing. Use
+`app-store-connect` export under that same verified team, preserving the archive
+and incrementing build numbers for subsequent uploads. Keep credentials outside
+the repository. Verify Apple processing separately from upload completion.
