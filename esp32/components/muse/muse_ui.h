@@ -36,6 +36,16 @@ bool muse_ui_dark(void);
 void muse_ui_show_face(void);
 /* Select a top-level page immediately (0 companion, last settings). */
 bool muse_ui_show_page(unsigned page);
+
+/* Desktop preview diagnostics; implementation exists only in the simulator. */
+typedef struct {
+    const char *state;
+    uint32_t avatar_frames;
+    unsigned page, pages;
+    int brightness;
+    bool dark;
+} muse_ui_preview_t;
+muse_ui_preview_t muse_ui_preview(void);
 /* Settings sub-pages turn off the tile swipe so they can use horizontal gestures. */
 void muse_ui_set_swipe_enabled(bool enabled);
 /* Temporarily applies a brightness while a slider is dragged. */

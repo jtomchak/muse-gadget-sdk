@@ -154,6 +154,9 @@ static int s_preview_brightness = -1;
 static int s_shown_page = -1;
 static int s_shown_speaker = -1;
 static muse_mode_t s_last_mode = MUSE_MODE_COUNT;
+#if CONFIG_MUSE_BOARD_SIMULATOR
+static uint32_t s_avatar_frames;
+#endif
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
 static int64_t s_next_avatar_us;
 #endif
@@ -1207,7 +1210,6 @@ static void update_chrome(float now)
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
         if (tile == s_tools) {
             page = 1;
-            muse_tools_ui_tick();
         }
 #endif
         bool subpage = settings && muse_settings_ui_in_subpage();
@@ -1247,6 +1249,11 @@ static void update_chrome(float now)
      * app) and the speaker button has replies to mute. */
     muse_hatch_status_t h;
     muse_hatch_status(&h);
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    if (w.state == MUSE_WIFI_CONNECTED && h.state != MUSE_HATCH_REACHABLE) {
+        s_idle_name = h.state == MUSE_HATCH_NOT_SET ? "SET UP MUSE" : "MUSE OFFLINE";
+    }
+#endif
     bool paired = h.state != MUSE_HATCH_NOT_SET;
 
     /* The gadget's name, until it's paired. Emptied rather than hidden: the
@@ -1519,6 +1526,7 @@ static void frame_tick(lv_timer_t *timer)
     muse_mode_t mode = muse_state_mode(&mode_t);
     float now = (float)esp_timer_get_time() / 1e6f;
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    muse_tools_ui_tick();
     bool mode_changed = mode != s_last_mode;
 #endif
 
@@ -1568,6 +1576,9 @@ static void frame_tick(lv_timer_t *timer)
 #endif
         muse_pixel_render(&pose);
         invalidate_muse();
+#if CONFIG_MUSE_BOARD_SIMULATOR
+        s_avatar_frames++;
+#endif
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
     }
 #endif
@@ -1648,6 +1659,19 @@ bool muse_ui_show_page(unsigned page)
     s_next_settings_tick = 0;
     return true;
 }
+
+#if CONFIG_MUSE_BOARD_SIMULATOR
+muse_ui_preview_t muse_ui_preview(void)
+{
+    unsigned page = lv_tileview_get_tile_active(s_tv) == s_settings ? MUSE_PAGE_COUNT - 1 : 0;
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    if (lv_tileview_get_tile_active(s_tv) == s_tools) page = 1;
+#endif
+    return (muse_ui_preview_t){ .state = lv_label_get_text(s_state_lbl),
+        .avatar_frames = s_avatar_frames, .page = page, .pages = MUSE_PAGE_COUNT,
+        .brightness = s_brightness, .dark = s_dark };
+}
+#endif
 
 void muse_ui_set_swipe_enabled(bool enabled)
 {

@@ -50,7 +50,7 @@ if(CONFIG_MUSE_ENABLED)
     endif()
     list(APPEND srcs "muse_chat_text.c")
     if(CONFIG_MUSE_OPTIMIZED_EXPERIENCE)
-        list(APPEND srcs "muse_experience.c" "muse_tools_ui.c")
+        list(APPEND srcs "muse_experience.c" "muse_tools_ui.c" "muse_local_tools.c")
     endif()
     if(CONFIG_MUSE_CJK_FONT)
         list(APPEND srcs "fonts/muse_font_cjk_16.c")   # captions' CJK fallback

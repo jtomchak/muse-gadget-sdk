@@ -36,6 +36,7 @@ option(MUSE_SIM_FETCH_DEPS
        ON)
 option(MUSE_SIM_SANITIZERS "Build the simulator with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(MUSE_SIM_WARNINGS_AS_ERRORS "Treat simulator warnings as errors" OFF)
+option(MUSE_SIM_WAVESHARE_175C "Preview the Waveshare 1.75C at 466x466" OFF)
 
 set(MUSE_SIM_LVGL_VERSION "9.5.0")
 set(MUSE_SIM_SDL_MIN_VERSION "2.0.18")
@@ -155,6 +156,7 @@ add_executable(muse_simulator
     "${MUSE_COMPONENT_DIR}/muse_state.c"
     "${MUSE_COMPONENT_DIR}/muse_experience.c"
     "${MUSE_COMPONENT_DIR}/muse_tools_ui.c"
+    "${MUSE_COMPONENT_DIR}/muse_local_tools.c"
     "${MUSE_COMPONENT_DIR}/muse_text.c"
     "${MUSE_COMPONENT_DIR}/../../avatar/muse_pixel.c"
 )
@@ -183,6 +185,7 @@ if(APPLE)
 endif()
 
 target_compile_options(muse_simulator PRIVATE -Wall -Wextra -Wpedantic)
+target_compile_definitions(muse_simulator PRIVATE MUSE_SIM_WAVESHARE_175C=$<BOOL:${MUSE_SIM_WAVESHARE_175C}>)
 if(MUSE_SIM_WARNINGS_AS_ERRORS)
     target_compile_options(muse_simulator PRIVATE -Werror)
 endif()
@@ -206,6 +209,7 @@ if(BUILD_TESTING AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_simulator.py
         COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_simulator.py"
                 --binary "$<TARGET_FILE:muse_simulator>"
+                --width $<IF:$<BOOL:${MUSE_SIM_WAVESHARE_175C}>,466,412>
     )
     set(MUSE_SIM_TEST_ENVIRONMENT
         "SDL_VIDEODRIVER=dummy"

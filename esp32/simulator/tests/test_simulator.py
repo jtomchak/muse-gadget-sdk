@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -66,7 +67,10 @@ def render(binary: Path, scenario: Path, output: Path) -> tuple[str, subprocess.
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--binary", type=Path, required=True)
+    parser.add_argument("--width", type=int, default=412)
     args = parser.parse_args()
+    global WIDTH, HEIGHT
+    WIDTH = HEIGHT = args.width
     binary = args.binary.resolve()
     assert binary.is_file(), binary
     assert SCENARIOS, "no simulator scenarios found"
@@ -81,6 +85,39 @@ def main() -> None:
             hashes[scenario.stem] = first
 
         assert len(set(hashes.values())) == len(hashes), f"scenarios rendered identically: {hashes}"
+
+        def inspect(script: str) -> dict:
+            scenario = tmp_path / "check.txt"
+            scenario.write_text(script)
+            _, proc = render(binary, scenario, tmp_path / "check.ppm")
+            return json.loads(next(line[9:] for line in proc.stdout.splitlines()
+                                   if line.startswith("@preview ")))
+
+        # These observe the production widgets and render loop, not just policy helpers.
+        feedback = inspect("face=idle\npress=true\n")
+        assert feedback["state"] == "PREPARING MIC", feedback
+        released = inspect("face=idle\npress=true\npress=false\n")
+        assert released["state"] == "READY", released
+        idle = inspect("face=idle\nadvance=1000\n")
+        battery = inspect("face=idle\nbattery=80\nusb=false\nadvance=1000\n")
+        audio = inspect("face=listening\nadvance=1000\n")
+        assert battery["avatar_frames"] < idle["avatar_frames"], (battery, idle)
+        assert audio["avatar_frames"] < idle["avatar_frames"], (audio, idle)
+        dimmed = inspect("face=idle\nbattery=80\nusb=false\nbrightness=80\nadvance=21000\n")
+        assert dimmed["brightness"] == 30, dimmed
+        wake = inspect("face=idle\nbattery=80\nusb=false\nbrightness=80\nadvance=21000\n"
+                       "tool=next\n")
+        assert wake["brightness"] == 80, wake
+        # Start the brew timer offline, let the screen sleep, then expire it.
+        done = inspect("face=idle\nwifi=off\npage=1\ntool=next\ntool=next\ntool=next\n"
+                       "tool=act\nasleep=true\nadvance=181000\n")
+        assert done["tool_value"] == "00:00 DONE" and not done["dark"], done
+        assert done["page"] == 1 and done["pages"] == 3, done
+        paused = inspect("face=idle\nwifi=off\npage=1\ntool=next\ntool=next\n"
+                         "tool=act\nadvance=10000\ntool=act\nadvance=60000\n")
+        assert paused["tool_value"] == "24:50", paused
+        offline = inspect("face=idle\nwifi=off\nadvance=1000\n")
+        assert offline["state"] == "WI-FI OFF", offline
 
         # Showing shutdown must not lock subsequent preview state selections.
         after_off = tmp_path / "after-off.txt"

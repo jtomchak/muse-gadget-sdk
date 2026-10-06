@@ -45,6 +45,7 @@
 #include "muse_wifi.h"
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
 #include "muse_experience.h"
+#include "muse_local_tools.h"
 #include "esp_timer.h"
 #endif
 #if CONFIG_MUSE_WATCHER_CAMERA
@@ -452,6 +453,12 @@ static void input_task(void *arg)
         TickType_t now = xTaskGetTickCount();
         if (now - checked >= pdMS_TO_TICKS(SLEEP_CHECK_MS)) {
             checked = now;
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+            if (muse_tools_alarm_take((uint32_t)(esp_timer_get_time() / 1000))) {
+                set_asleep(false, "local timer");
+                muse_state_poke();
+            }
+#endif
             check_sleep();
         }
 

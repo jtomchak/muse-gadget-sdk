@@ -20,7 +20,11 @@
 #include "src/drivers/sdl/lv_sdl_mouse.h"
 #include "src/drivers/sdl/lv_sdl_window.h"
 
+#if MUSE_SIM_WAVESHARE_175C
+#define WATCHER_RESOLUTION 466
+#else
 #define WATCHER_RESOLUTION 412
+#endif
 
 static lv_display_t *s_display;
 

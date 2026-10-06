@@ -33,6 +33,9 @@
 
 #include "muse_state.h"
 #include "muse_ui.h"
+#include "muse_tools_ui.h"
+#include "muse_experience.h"
+#include "esp_timer.h"
 #include "sim_board.h"
 #include "sim_platform.h"
 #include "sim_services.h"
@@ -294,6 +297,17 @@ static bool apply_setting(const char *key, const char *value, bool real_time)
     bool flag;
     long number;
     float scalar;
+    if (!strcmp(key, "tool")) {
+        if (!strcmp(value, "next")) muse_tools_ui_next();
+        else if (!strcmp(value, "act")) muse_tools_ui_act();
+        else if (!strcmp(value, "reset")) muse_tools_ui_reset();
+        else return false;
+        return true;
+    }
+    if (!strcmp(key, "press") && parse_bool(value, &flag)) {
+        muse_experience_press(flag, (uint32_t)(esp_timer_get_time() / 1000));
+        return true;
+    }
     if (!strcmp(key, "page") && parse_long(value, 0, 2, &number)) {
         return muse_ui_show_page((unsigned)number);
     }
@@ -529,6 +543,11 @@ int main(int argc, char **argv)
     }
     if (headless || screenshot) {
         render_for(run_ms, false);
+        muse_ui_preview_t preview = muse_ui_preview();
+        printf("@preview {\"state\":\"%s\",\"avatar_frames\":%u,\"page\":%u,\"pages\":%u,"
+               "\"brightness\":%d,\"dark\":%s,\"tool_value\":\"%s\"}\n",
+               preview.state, (unsigned)preview.avatar_frames, preview.page, preview.pages,
+               preview.brightness, preview.dark ? "true" : "false", muse_tools_ui_value());
         if (screenshot && !write_snapshot(screenshot)) {
             return 1;
         }
