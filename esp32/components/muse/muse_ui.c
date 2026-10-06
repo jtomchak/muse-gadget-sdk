@@ -154,6 +154,9 @@ static int s_preview_brightness = -1;
 static int s_shown_page = -1;
 static int s_shown_speaker = -1;
 static muse_mode_t s_last_mode = MUSE_MODE_COUNT;
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+static int64_t s_next_avatar_us;
+#endif
 
 /*
  * While Muse is thinking or speaking it shrinks to make room for the reply:
@@ -1510,6 +1513,9 @@ static void frame_tick(lv_timer_t *timer)
     float mode_t;
     muse_mode_t mode = muse_state_mode(&mode_t);
     float now = (float)esp_timer_get_time() / 1e6f;
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    bool mode_changed = mode != s_last_mode;
+#endif
 
     if (mode != s_last_mode) {
         if (mode == MUSE_MODE_LISTENING) {
@@ -1546,8 +1552,18 @@ static void frame_tick(lv_timer_t *timer)
         .level = s_level,
         .happy = muse_state_happiness(),
     };
-    muse_pixel_render(&pose);
-    invalidate_muse();
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    int64_t now_us = esp_timer_get_time();
+    uint32_t avatar_ms = muse_experience_avatar_ms(
+        mode == MUSE_MODE_LISTENING || mode == MUSE_MODE_SPEAKING, muse_board->frame_ms);
+    if (mode_changed || now_us >= s_next_avatar_us) {
+        s_next_avatar_us = now_us + (int64_t)avatar_ms * 1000;
+#endif
+        muse_pixel_render(&pose);
+        invalidate_muse();
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    }
+#endif
 
     update_status(mode, now);
 }

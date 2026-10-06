@@ -20,3 +20,8 @@ bool muse_experience_preparing(uint32_t now_ms)
      * Unsigned subtraction also handles the millisecond clock wrapping. */
     return atomic_load(&s_pressed) && now_ms - atomic_load(&s_pressed_at) < 1000;
 }
+
+uint32_t muse_experience_avatar_ms(bool audio_active, uint32_t normal_ms)
+{
+    return audio_active && normal_ms < 120 ? 120 : normal_ms;
+}

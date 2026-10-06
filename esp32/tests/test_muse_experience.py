@@ -24,6 +24,8 @@ class ExperienceTest(unittest.TestCase):
         cls.policy.muse_experience_press.argtypes = [ctypes.c_bool, ctypes.c_uint32]
         cls.policy.muse_experience_preparing.argtypes = [ctypes.c_uint32]
         cls.policy.muse_experience_preparing.restype = ctypes.c_bool
+        cls.policy.muse_experience_avatar_ms.argtypes = [ctypes.c_bool, ctypes.c_uint32]
+        cls.policy.muse_experience_avatar_ms.restype = ctypes.c_uint32
 
     @classmethod
     def tearDownClass(cls):
@@ -44,3 +46,8 @@ class ExperienceTest(unittest.TestCase):
         self.policy.muse_experience_press(True, 0xFFFFFFF0)
         self.assertTrue(self.policy.muse_experience_preparing(20))
         self.assertFalse(self.policy.muse_experience_preparing(984))
+
+    def test_audio_reduces_avatar_work_without_speeding_up_slower_boards(self):
+        self.assertEqual(self.policy.muse_experience_avatar_ms(True, 40), 120)
+        self.assertEqual(self.policy.muse_experience_avatar_ms(False, 40), 40)
+        self.assertEqual(self.policy.muse_experience_avatar_ms(True, 200), 200)
