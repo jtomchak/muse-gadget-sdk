@@ -155,6 +155,7 @@ add_executable(muse_simulator
     "${MUSE_COMPONENT_DIR}/muse_ui.c"
     "${MUSE_COMPONENT_DIR}/muse_state.c"
     "${MUSE_COMPONENT_DIR}/muse_experience.c"
+    "${MUSE_COMPONENT_DIR}/muse_standby.c"
     "${MUSE_COMPONENT_DIR}/muse_tools_ui.c"
     "${MUSE_COMPONENT_DIR}/muse_local_tools.c"
     "${MUSE_COMPONENT_DIR}/muse_text.c"

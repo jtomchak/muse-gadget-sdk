@@ -45,6 +45,7 @@
 #include "muse_wifi.h"
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
 #include "muse_experience.h"
+#include "muse_standby.h"
 #include "muse_local_tools.h"
 #include "esp_timer.h"
 #endif
@@ -167,7 +168,15 @@ static void aux_button(bool pressed, bool edge)
         } else if (sleep_in) {
             sleep_in = 0;
             swallow = true;
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+            int shortcut = muse_standby_shortcut();
+            if (shortcut == 0) muse_ui_request_page(1);
+            else if (shortcut == 1) muse_settings_set_speaker_on(!muse_settings_speaker_on());
+            else toggle_phone_setup();
+            muse_state_poke();
+#else
             toggle_phone_setup();
+#endif
         }
         return;
     }
@@ -356,19 +365,41 @@ static bool update_power(void)
     static bool paused;
     bool pause = muse_board->display_pause && muse_state_on_battery() && muse_state_asleep()
                  && muse_ui_dark() && muse_voice_resting();
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    bool clock = muse_state_asleep() && muse_standby_enabled() && muse_board->standby_pause;
+    if (clock) pause = muse_state_on_battery() && muse_voice_resting()
+                       && muse_standby_can_pause((uint32_t)(esp_timer_get_time()/1000));
+    static bool paused_clock;
+    if (paused && paused_clock != clock) {
+        if (paused_clock) muse_board->standby_pause(false);
+        else muse_board->display_pause(false);
+        paused = false;
+    }
+#endif
     bool want_low = pause && !muse_console_host();
     if (pause == paused && want_low == s_cpu_low) {
         return paused;
     }
     if (pause && !paused) {
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+        if (clock) muse_board->standby_pause(true);
+        else
+#endif
         muse_board->display_pause(true);
     }
     if (want_low != s_cpu_low) {
         set_cpu_low(want_low);
     }
     if (!pause && paused) {
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+        if (paused_clock) muse_board->standby_pause(false);
+        else
+#endif
         muse_board->display_pause(false);
     }
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    paused_clock = clock;
+#endif
     paused = pause;
     s_cpu_low = want_low;
     ESP_LOGI(TAG, "%s", s_cpu_low ? "low power: display paused"
@@ -388,15 +419,20 @@ static bool update_wifi_nap(TickType_t now, bool paused)
 {
     static TickType_t low_since;
     static bool napping;
-    if (!s_cpu_low) {
+    bool clock_rest = false;
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    clock_rest = muse_state_asleep() && muse_state_on_battery() && muse_standby_enabled()
+                 && muse_voice_resting() && !muse_console_host();
+#endif
+    if (!s_cpu_low && !clock_rest) {
         low_since = now;
     }
     if (!muse_state_asleep() && s_nap_now) {
         s_nap_now = false;
         muse_state_set_as_if_battery(false);
     }
-    bool nap = paused && !muse_voice_notes_waiting()
-               && (s_nap_now || (s_cpu_low && now - low_since >= pdMS_TO_TICKS(WIFI_NAP_MS)));
+    bool nap = (paused || clock_rest) && !muse_voice_notes_waiting()
+               && (s_nap_now || ((s_cpu_low || clock_rest) && now - low_since >= pdMS_TO_TICKS(WIFI_NAP_MS)));
     if (nap != napping) {
         napping = nap;
         ESP_LOGI(TAG, "Wi-Fi %s", nap ? "napping" : "waking");
@@ -458,6 +494,11 @@ static void input_task(void *arg)
                 set_asleep(false, "local timer");
                 muse_state_poke();
             }
+            unsigned wake = muse_board->standby_wake ? muse_board->standby_wake() : 0;
+            if (wake) {
+                if (wake & 1) muse_ui_wake_touch();
+                set_asleep(false, wake & 1 ? "screen tap" : "enclosure tap");
+            }
 #endif
             check_sleep();
         }
@@ -480,6 +521,7 @@ static void input_task(void *arg)
         if (paused && muse_board->wait_buttons) {
             uint32_t wait_ms = napping ? NAP_WAIT_MS : REST_WAIT_MS;
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+            if (muse_standby_enabled()) wait_ms = wait_ms > 100 ? 100 : wait_ms;
             wait_ms = muse_tools_alarm_wait_ms((uint32_t)(esp_timer_get_time() / 1000), wait_ms);
 #endif
             muse_board->wait_buttons(wait_ms);

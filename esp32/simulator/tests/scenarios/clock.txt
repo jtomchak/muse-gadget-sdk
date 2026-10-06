@@ -1,0 +1,6 @@
+face=idle
+battery=80
+usb=false
+brightness=80
+asleep=true
+advance=61000

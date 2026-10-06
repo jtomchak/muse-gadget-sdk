@@ -50,7 +50,7 @@ if(CONFIG_MUSE_ENABLED)
     endif()
     list(APPEND srcs "muse_chat_text.c")
     if(CONFIG_MUSE_OPTIMIZED_EXPERIENCE)
-        list(APPEND srcs "muse_experience.c" "muse_tools_ui.c" "muse_local_tools.c")
+        list(APPEND srcs "muse_experience.c" "muse_standby.c" "muse_tap.c" "muse_tools_ui.c" "muse_local_tools.c")
     endif()
     if(CONFIG_MUSE_CJK_FONT)
         list(APPEND srcs "fonts/muse_font_cjk_16.c")   # captions' CJK fallback
@@ -110,7 +110,7 @@ set(muse_priv_requires
     bt esp-tls mbedtls esp_app_format esp_http_client
     noise_core minimp3
     esp_lcd esp_adc esp_driver_i2s esp_driver_ledc esp_driver_spi esp_driver_uart esp_wifi
-    esp_driver_pcnt)
+    esp_driver_pcnt esp_netif)
 list(APPEND muse_priv_requires camera)
 
 idf_component_register(

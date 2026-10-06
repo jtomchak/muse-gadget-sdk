@@ -46,6 +46,8 @@
 #include "muse_wifi.h"
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
 #include "muse_experience.h"
+#include "muse_standby.h"
+#include <stdatomic.h>
 #include "muse_tools_ui.h"
 #define MUSE_PAGE_COUNT 3
 #else
@@ -107,6 +109,12 @@ static lv_obj_t *s_tools;
 static lv_obj_t *s_wifi_icon;
 static lv_obj_t *s_ble_icon;
 static lv_obj_t *s_cover;
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+static lv_obj_t *s_clock;
+static bool s_clock_visible;
+static atomic_bool s_wake_touch;
+static atomic_int s_requested_page = -1;
+#endif
 static lv_obj_t *s_pair;
 static lv_obj_t *s_pair_code;
 static lv_obj_t *s_pair_title;
@@ -1116,6 +1124,11 @@ static void build_overlays(void)
     lv_obj_add_event_cb(s_cover, on_cover_event, LV_EVENT_PRESSED, NULL);
     lv_obj_add_event_cb(s_cover, on_cover_event, LV_EVENT_RELEASED, NULL);
     lv_obj_add_event_cb(s_cover, on_cover_event, LV_EVENT_PRESS_LOST, NULL);
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    s_clock = make_label(s_cover, &lv_font_montserrat_48, 0x999999);
+    lv_obj_center(s_clock);
+    lv_obj_add_flag(s_clock, LV_OBJ_FLAG_HIDDEN);
+#endif
 
     if (s_indev) {
         lv_indev_add_event_cb(s_indev, on_any_press, LV_EVENT_PRESSED, NULL);
@@ -1139,6 +1152,41 @@ bool muse_ui_dark(void)
 static bool update_sleep(void)
 {
     bool asleep = muse_state_asleep();
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    bool clock = asleep && muse_standby_enabled();
+    if (clock) {
+        static int last_minute = -1;
+        char text[6]; int minute;
+        muse_standby_clock(text, &minute);
+        if (!s_clock_visible || minute != last_minute) {
+            lv_label_set_text(s_clock, text);
+            /* Move the illuminated pixels gently once per minute. */
+            lv_obj_align(s_clock, LV_ALIGN_CENTER, (minute % 5 - 2)*6, ((minute/5)%5-2)*6);
+            last_minute = minute;
+            muse_standby_rendered((uint32_t)(esp_timer_get_time()/1000));
+        }
+        if (!s_clock_visible) {
+            muse_menu_close();
+            if (s_dark && muse_board->panel_sleep) muse_board->panel_sleep(false);
+            s_dark = false;
+            lv_obj_set_style_bg_opa(s_cover, LV_OPA_COVER, 0);
+            lv_obj_remove_flag(s_cover, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(s_clock, LV_OBJ_FLAG_HIDDEN);
+            s_clock_visible = true;
+        }
+        int brightness = muse_settings_brightness();
+        apply_brightness(brightness < 8 ? brightness : 8);
+        return true;
+    }
+    muse_standby_exit();
+    if (s_clock_visible) {
+        s_clock_visible = false;
+        lv_obj_add_flag(s_clock, LV_OBJ_FLAG_HIDDEN);
+        if (atomic_exchange(&s_wake_touch, false))
+            lv_obj_set_style_bg_opa(s_cover, LV_OPA_TRANSP, 0);
+        else lv_obj_add_flag(s_cover, LV_OBJ_FLAG_HIDDEN);
+    }
+#endif
     if (asleep && !s_dark) {
         muse_menu_close();
         apply_brightness(0);
@@ -1526,6 +1574,8 @@ static void frame_tick(lv_timer_t *timer)
     muse_mode_t mode = muse_state_mode(&mode_t);
     float now = (float)esp_timer_get_time() / 1e6f;
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    int requested = atomic_exchange(&s_requested_page, -1);
+    if (requested >= 0) muse_ui_show_page((unsigned)requested);
     muse_tools_ui_tick();
     bool mode_changed = mode != s_last_mode;
 #endif
@@ -1669,7 +1719,8 @@ muse_ui_preview_t muse_ui_preview(void)
 #endif
     return (muse_ui_preview_t){ .state = lv_label_get_text(s_state_lbl),
         .avatar_frames = s_avatar_frames, .page = page, .pages = MUSE_PAGE_COUNT,
-        .brightness = s_brightness, .dark = s_dark };
+        .brightness = s_brightness, .dark = s_dark,
+        .clock = lv_label_get_text(s_clock), .clock_visible = s_clock_visible };
 }
 #endif
 
@@ -1759,3 +1810,19 @@ void muse_ui_camera_hint(bool visible)
     muse_board->display_unlock();
 }
 #endif
+
+void muse_ui_wake_touch(void)
+{
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    atomic_store(&s_wake_touch, true);
+#endif
+}
+
+void muse_ui_request_page(unsigned page)
+{
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    if (page < MUSE_PAGE_COUNT) atomic_store(&s_requested_page, (int)page);
+#else
+    (void)page;
+#endif
+}

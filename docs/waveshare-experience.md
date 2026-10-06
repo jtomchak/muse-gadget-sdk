@@ -23,8 +23,8 @@ features implemented as separate commits in their requested order.
 5. **Power:** after 20 idle seconds on battery, brightness caps at 30% without
    changing the saved preference. Input, voice activity, USB power, and opening
    settings restore the preference. Battery auto-sleep caps the saved timeout
-   at 60 seconds; Never and shorter choices are respected. Upstream panel,
-   touch, audio, Wi-Fi nap, PSRAM, and light-sleep behavior remains.
+   at 60 seconds; Never and shorter choices are respected. Audio, PSRAM, and upstream light-sleep tuning remain. Optional clock standby
+   keeps the panel and touch awake, as described below.
 6. **Offline tools:** brightness/speaker controls, a 25-minute focus timer,
    and two example brew recipes work locally. Recipes are stored in flash;
    the selected tool is saved in a separate NVS namespace. One timer runs at a
@@ -35,9 +35,53 @@ features implemented as separate commits in their requested order.
    Wi-Fi being connected does not imply Muse is reachable: the UI distinguishes
    MUSE OFFLINE from READY.
 
+Software validation: 207 host tests passed without skips; 412×412 and 466×466
+simulator scenarios passed, including ASan/UBSan on the Waveshare preview.
+ESP-IDF 6.0.1 firmware builds passed for Waveshare 1.75C, AIPI, and the default C5.
+
 These are scheduling choices, not measured battery-life or latency claims.
 The simulator exercises production UI code but does not simulate I2S, QSPI,
 radio, physical touch, NVS persistence, or battery current.
+
+## Clock standby and button gestures
+
+After the idle timeout (or one short BOOT press), a black clock screen remains
+at at most 8% brightness. Its large 24-hour time changes once per minute and
+moves slightly each minute. Dimming and movement reduce static exposure but
+cannot eliminate uneven AMOLED wear; changing the minute alone does not remove
+that risk. Brightness percentage is a panel command, not a measured wear rate. On battery, LVGL pauses after a 250 ms flush window
+and resumes when the wall-clock minute changes. The panel retains the image;
+touch continues scanning. Input checks touch at most every 100 ms. CPU light
+sleep and Wi-Fi nap can continue between refreshes. This is **standby with an
+illuminated panel**, not deep sleep. USB retains upstream's full-speed behavior.
+
+Settings → Sleep offers Dim clock On/Off. Off uses upstream's fully dark panel
+and sleeping touch controller, so either button wakes. The clock uses SNTP
+(`pool.ntp.org`), shows `--:--` until time is available, and keeps system time
+through light sleep and network loss. It requires a fresh sync after power-off.
+`CONFIG_MUSE_CLOCK_TIMEZONE` defaults to Arizona (`MST7`); change the POSIX TZ
+string in menuconfig for another timezone. No seconds animation is drawn.
+
+The top PWR button keeps push-to-talk. The bottom BOOT button supports:
+
+- One short press: enter standby after the 350 ms double-press window.
+- Double press: open Tools (default), toggle speaker mute, or toggle phone setup,
+  selected in Settings → Sleep → Double BOOT.
+- Hold 1.5 seconds: existing power-off action, with the existing hold hint.
+- Either button while asleep: wake and consume that press.
+
+Tap wake (trial) is **off by default**. Enabling it uses the QMI8658A
+accelerometer's hardware tap engine, not gyro polling. Vendor schematic INT1
+is wired to GPIO21; the sensor lives at I2C address 0x6B. The gyro stays off;
+500 Hz accelerometer sampling is active only while asleep. An interrupt
+latches a possible tap, and STATUS1 confirms it before waking. Missing sensor,
+I2C errors, and handshake timeouts disable tap wake for that boot while leaving
+button wake available. Screen tap in clock standby consumes the waking touch.
+
+Mock I2C tests cover both configuration phases, every write-failure exit, an
+absent sensor, and a bounded command timeout. They do not establish enclosure
+sensitivity, false-wake rate, or current consumption. Test those on the device
+before enabling tap wake for daily use. The settings use a separate NVS namespace.
 
 ## Build and test
 
@@ -90,7 +134,7 @@ automatic merge into custom firmware and no automatic device flash.
 
 Keep upstream integration changes small: new policy and tools modules contain
 the fork behavior, with Kconfig-gated hooks in input/UI and source registration
-in CMake. Hardware drivers and SDK transport APIs stay upstream-owned. Keep
+in CMake. The board driver adds optional standby/tap hooks; SDK transport APIs remain unchanged. Keep
 pairing data and partition offsets unchanged when resolving future conflicts.
 
 ## Physical acceptance checks
@@ -103,9 +147,19 @@ pairing data and partition offsets unchanged when resolving future conflicts.
 - Verify the circular screen edges, settings swipes, and readable reply cards.
 - On battery, verify dim/sleep/wake, timer expiry while asleep and Wi-Fi napping,
   and recipe selection across reboot. Timer state intentionally resets.
-- Measure current in active, dim, and asleep modes before claiming runtime.
+- Verify the clock minute boundary, timezone, unset time before SNTP, and offline
+  timekeeping; compare clock standby with full screen-off current.
+- Test single/double BOOT and hold independently, including wake presses. Confirm
+  the configured double action and persisted settings after reboot.
+- Try enclosure taps from different directions; log missed taps, desk movement
+  false wakes, and current with Tap wake enabled/disabled.
+- Measure current in active, dim, clock standby, and dark sleep before claiming runtime.
 
 Vendor reference used for power behavior:
 `waveshareteam/ESP32-S3-Touch-AMOLED-1.75C`,
 `examples/esp-idf/01_AXP2101/main/port_axp2101.cpp`.
 Existing Muse BSP and power-rail choices were preserved.
+
+Tap reference: vendor schematic and SensorLib QMI8658A datasheet Rev A,
+sections 5.3 and 10, with the vendor tap-example thresholds. Physical tap wake
+and battery runtime have not been verified: no board was connected during this build.

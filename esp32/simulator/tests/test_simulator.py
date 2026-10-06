@@ -30,17 +30,17 @@ HERE = Path(__file__).resolve().parent
 SCENARIOS = tuple(sorted((HERE / "scenarios").glob("*.txt")))
 
 
-def read_ppm(path: Path) -> bytes:
+def read_ppm(path: Path, allow_black: bool = False) -> bytes:
     raw = path.read_bytes()
     header = f"P6\n{WIDTH} {HEIGHT}\n255\n".encode()
     assert raw.startswith(header), f"{path}: wrong PPM header"
     pixels = raw[len(header) :]
     assert len(pixels) == WIDTH * HEIGHT * 3, f"{path}: truncated framebuffer"
-    assert len(set(pixels)) > 8, f"{path}: framebuffer has too few colours"
+    assert allow_black or len(set(pixels)) > 8, f"{path}: framebuffer has too few colours"
     return pixels
 
 
-def render(binary: Path, scenario: Path, output: Path) -> tuple[str, subprocess.CompletedProcess[str]]:
+def render(binary: Path, scenario: Path, output: Path, allow_black: bool = False) -> tuple[str, subprocess.CompletedProcess[str]]:
     env = {**os.environ, "SDL_VIDEODRIVER": "dummy", "SDL_AUDIODRIVER": "dummy"}
     proc = subprocess.run(
         [
@@ -60,7 +60,7 @@ def render(binary: Path, scenario: Path, output: Path) -> tuple[str, subprocess.
         timeout=30,
     )
     assert proc.returncode == 0, f"{scenario.name}:\n{proc.stdout}\n{proc.stderr}"
-    pixels = read_ppm(output)
+    pixels = read_ppm(output, allow_black)
     return hashlib.sha256(pixels).hexdigest(), proc
 
 
@@ -86,10 +86,10 @@ def main() -> None:
 
         assert len(set(hashes.values())) == len(hashes), f"scenarios rendered identically: {hashes}"
 
-        def inspect(script: str) -> dict:
+        def inspect(script: str, allow_black: bool = False) -> dict:
             scenario = tmp_path / "check.txt"
             scenario.write_text(script)
-            _, proc = render(binary, scenario, tmp_path / "check.ppm")
+            _, proc = render(binary, scenario, tmp_path / "check.ppm", allow_black)
             return json.loads(next(line[9:] for line in proc.stdout.splitlines()
                                    if line.startswith("@preview ")))
 
@@ -108,6 +108,16 @@ def main() -> None:
         wake = inspect("face=idle\nbattery=80\nusb=false\nbrightness=80\nadvance=21000\n"
                        "tool=next\n")
         assert wake["brightness"] == 80, wake
+        requested = inspect("face=idle\npage_request=1\n")
+        assert requested["page"] == 1, requested
+        standby = inspect("face=idle\nbrightness=80\nasleep=true\n")
+        assert standby["clock_visible"] and standby["brightness"] == 8 and not standby["dark"], standby
+        later = inspect("face=idle\nasleep=true\nadvance=61000\n")
+        assert later["clock"] != standby["clock"], (standby, later)
+        awake = inspect("face=idle\nbrightness=80\nasleep=true\nadvance=1000\nasleep=false\n")
+        assert not awake["clock_visible"] and awake["brightness"] == 80, awake
+        screen_off = inspect("face=idle\nclock=false\nasleep=true\n", allow_black=True)
+        assert screen_off["dark"] and not screen_off["clock_visible"], screen_off
         # Start the brew timer offline, let the screen sleep, then expire it.
         done = inspect("face=idle\nwifi=off\npage=1\ntool=next\ntool=next\ntool=next\n"
                        "tool=act\nasleep=true\nadvance=181000\n")

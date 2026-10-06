@@ -99,6 +99,14 @@ menu "Muse"
             animation, and battery dimming to the Waveshare 1.75C.
             Disable to use the upstream experience unchanged.
 
+    config MUSE_CLOCK_TIMEZONE
+        string "Standby clock POSIX timezone"
+        depends on MUSE_OPTIMIZED_EXPERIENCE
+        default "MST7"
+        help
+            POSIX TZ string. MST7 is Arizona; UTC0 is UTC.
+            Clock stays unset until SNTP sync.
+
     # Always defined, unlike the target-dependent board options, so
     # idf_component.yml rules can select each board's managed components.
     config MUSE_BOARD_ID
