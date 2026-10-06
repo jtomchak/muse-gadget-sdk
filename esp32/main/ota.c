@@ -19,6 +19,9 @@
 #include "sdkconfig.h"
 
 #include <stddef.h>
+#include <stdatomic.h>
+#include <string.h>
+
 
 bool ota_is_enabled(void) {
 #if CONFIG_HOMEHUB_OTA_ENABLED
@@ -29,6 +32,7 @@ bool ota_is_enabled(void) {
 }
 
 #if CONFIG_HOMEHUB_OTA_ENABLED
+static atomic_bool s_ota_busy;
 #include "stack_monitor.h"
 
 #include <stdlib.h>
@@ -39,6 +43,7 @@ bool ota_is_enabled(void) {
 #include "esp_system.h"
 #include "esp_https_ota.h"
 #include "esp_http_client.h"
+#include "psa/crypto.h"
 #include "esp_crt_bundle.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -53,6 +58,9 @@ static const char *TAG = "link.ota";
 
 typedef struct {
     char *url;
+    char expected_sha[65];
+    bool hash_failed;
+    psa_hash_operation_t sha;
     bool force;
     ota_status_cb cb;
     void *user;
@@ -100,8 +108,13 @@ static void emit(ota_ctx_t *ctx, ota_result_t result, const char *detail,
 }
 
 static esp_err_t ota_http_event_handler(esp_http_client_event_t *evt) {
-    const char *phase = evt->user_data ? (const char *)evt->user_data : "ota";
+    ota_ctx_t *ctx=evt->user_data;
+    const char *phase="ota";
     switch (evt->event_id) {
+        case HTTP_EVENT_ON_DATA:
+            if(ctx && *ctx->expected_sha && esp_http_client_get_status_code(evt->client)==200)
+                ctx->hash_failed |= psa_hash_update(&ctx->sha,(const unsigned char *)evt->data,evt->data_len)!=PSA_SUCCESS;
+            break;
         case HTTP_EVENT_HEADERS_SENT:
             ESP_LOGI(TAG, "%s request headers sent", phase);
             break;
@@ -171,12 +184,15 @@ static void ota_task(void *arg) {
         .max_redirection_count = OTA_MAX_REDIRECTS,
         .buffer_size_tx = OTA_HTTP_TX_BUFFER_BYTES,
         .event_handler = ota_http_event_handler,
-        .user_data = (void *)"ota download",
+        .user_data = ctx,
+        .disable_auto_redirect = *ctx->expected_sha != 0,
     };
     esp_https_ota_config_t ota_cfg = {
         .http_config = &http_cfg,
     };
 
+    ctx->sha=psa_hash_operation_init();
+    ctx->hash_failed=psa_hash_setup(&ctx->sha,PSA_ALG_SHA_256)!=PSA_SUCCESS;
     esp_https_ota_handle_t handle = NULL;
     esp_err_t err = esp_https_ota_begin(&ota_cfg, &handle);
     if (err != ESP_OK || !handle) {
@@ -228,6 +244,13 @@ static void ota_task(void *arg) {
         goto done;
     }
 
+    if(*ctx->expected_sha){
+        unsigned char digest[32]={0};char actual[65];size_t digest_len=0;ctx->hash_failed |= psa_hash_finish(&ctx->sha,digest,sizeof(digest),&digest_len)!=PSA_SUCCESS;
+        for(int i=0;i<32;i++)snprintf(actual+i*2,3,"%02x",digest[i]);
+        if(ctx->hash_failed||digest_len!=32||strcasecmp(actual,ctx->expected_sha)){
+            esp_https_ota_abort(handle);emit(ctx,OTA_RESULT_FAILED,"manifest checksum mismatch",new_version,running);goto done;
+        }
+    }
     // finish() validates SHA-256 + signature (when enabled) and sets the boot
     // partition. Do NOT abort after calling finish.
     err = esp_https_ota_finish(handle);
@@ -247,17 +270,23 @@ static void ota_task(void *arg) {
     esp_restart();
 
 done:
+    psa_hash_abort(&ctx->sha);atomic_store(&s_ota_busy,false);
     free(ctx->url);
     free(ctx);
     stack_monitor_record(NULL);
     vTaskDelete(NULL);
 }
 
-void ota_start(const char *url, bool force, ota_status_cb cb, void *user) {
+static bool start(const char *url,bool force,const char *expected,ota_status_cb cb,void *user) {
+    if(atomic_exchange(&s_ota_busy,true)) {
+        if(cb) {ota_event_t ev={.result=OTA_RESULT_FAILED,.detail="OTA already running"};cb(&ev,user);}
+        return false;
+    }
     ota_ctx_t *ctx = url && *url ? calloc(1, sizeof(*ctx)) : NULL;
     if (ctx) {
         ctx->url = strdup(url);
         ctx->force = force;
+        if(expected)snprintf(ctx->expected_sha,sizeof(ctx->expected_sha),"%s",expected);
         ctx->cb = cb;
         ctx->user = user;
     }
@@ -270,22 +299,34 @@ void ota_start(const char *url, bool force, ota_status_cb cb, void *user) {
                                .detail = url && *url ? "out of memory" : "empty url" };
             cb(&ev, user);
         }
-        return;
+        atomic_store(&s_ota_busy,false);return false;
     }
     // 8 KB stack: TLS handshake + flash writes during the OTA download.
     if (xTaskCreate(ota_task, "ota", 16384, ctx, 5, NULL) != pdPASS) {
         ESP_LOGE(TAG, "could not start OTA task");
         free(ctx->url);
         free(ctx);
+        atomic_store(&s_ota_busy,false);
         if (cb) {
             ota_event_t ev = { .result = OTA_RESULT_FAILED,
                                .detail = "could not start ota task" };
             cb(&ev, user);
         }
+        return false;
     }
+    return true;
+}
+
+void ota_start(const char *url,bool force,ota_status_cb cb,void *user){start(url,force,NULL,cb,user);}
+bool ota_start_verified(const char *url,const char *sha,ota_status_cb cb,void *user){
+    if(!url||strncmp(url,"https://",8)||!sha||strlen(sha)!=64)return false;
+    for(int i=0;i<64;i++)if(!((sha[i]>='0'&&sha[i]<='9')||(sha[i]>='a'&&sha[i]<='f')||(sha[i]>='A'&&sha[i]<='F')))return false;
+    return start(url,false,sha,cb,user);
 }
 
 #else
+
+bool ota_start_verified(const char *url,const char *sha,ota_status_cb cb,void *user){(void)url;(void)sha;(void)cb;(void)user;return false;}
 
 void ota_start(const char *url, bool force, ota_status_cb cb, void *user) {
     (void)url;

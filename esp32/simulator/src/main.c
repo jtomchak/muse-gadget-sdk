@@ -33,6 +33,10 @@
 
 #include "muse_state.h"
 #include "muse_ui.h"
+#include "muse_tools_ui.h"
+#include "muse_experience.h"
+#include "muse_standby.h"
+#include "esp_timer.h"
 #include "sim_board.h"
 #include "sim_platform.h"
 #include "sim_services.h"
@@ -294,6 +298,28 @@ static bool apply_setting(const char *key, const char *value, bool real_time)
     bool flag;
     long number;
     float scalar;
+    if (!strcmp(key, "tool")) {
+        if (!strcmp(value, "next")) muse_tools_ui_next();
+        else if (!strcmp(value, "act")) muse_tools_ui_act();
+        else if (!strcmp(value, "reset")) muse_tools_ui_reset();
+        else return false;
+        return true;
+    }
+    if (!strcmp(key, "clock") && parse_bool(value, &flag)) {
+        if (flag != muse_standby_enabled()) muse_standby_toggle();
+        return true;
+    }
+    if (!strcmp(key, "press") && parse_bool(value, &flag)) {
+        muse_experience_press(flag, (uint32_t)(esp_timer_get_time() / 1000));
+        return true;
+    }
+    if (!strcmp(key, "page_request") && parse_long(value, 0, 2, &number)) {
+        muse_ui_request_page((unsigned)number);
+        return true;
+    }
+    if (!strcmp(key, "page") && parse_long(value, 0, 2, &number)) {
+        return muse_ui_show_page((unsigned)number);
+    }
     if (!strcmp(key, "face")) {
         return set_face(value);
     }
@@ -526,6 +552,11 @@ int main(int argc, char **argv)
     }
     if (headless || screenshot) {
         render_for(run_ms, false);
+        muse_ui_preview_t preview = muse_ui_preview();
+        printf("@preview {\"state\":\"%s\",\"avatar_frames\":%u,\"page\":%u,\"pages\":%u,"
+               "\"brightness\":%d,\"dark\":%s,\"tool_value\":\"%s\",\"clock\":\"%s\",\"clock_visible\":%s}\n",
+               preview.state, (unsigned)preview.avatar_frames, preview.page, preview.pages,
+               preview.brightness, preview.dark ? "true" : "false", muse_tools_ui_value(), preview.clock, preview.clock_visible ? "true" : "false");
         if (screenshot && !write_snapshot(screenshot)) {
             return 1;
         }

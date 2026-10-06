@@ -72,3 +72,7 @@ void muse_ble_forget_all(void);
 void muse_ble_command(char *cmd);
 /* The STATUS characteristic's JSON; returns its length, as snprintf does. */
 int muse_ble_status_json(char *out, size_t len);
+
+int muse_ble_pocket_send(const uint8_t *data,size_t size);
+size_t muse_ble_pocket_mtu(void);
+bool muse_ble_pocket_subscribed(void);

@@ -30,10 +30,27 @@ esp_err_t muse_ui_start(void);
 /* From any task: the screen has gone dark for sleep (and not yet woken). */
 bool muse_ui_dark(void);
 
+/* Input task: request navigation on the next LVGL frame. */
+void muse_ui_request_page(unsigned page);
+
 /* The functions below run in the LVGL task (or with the display lock held). */
 
 /* Slide back to the face (e.g. when a talk starts). */
 void muse_ui_show_face(void);
+/* Select a top-level page immediately (0 companion, last settings). */
+bool muse_ui_show_page(unsigned page);
+
+/* Desktop preview diagnostics; implementation exists only in the simulator. */
+typedef struct {
+    const char *state;
+    uint32_t avatar_frames;
+    unsigned page, pages;
+    int brightness;
+    bool dark;
+    const char *clock;
+    bool clock_visible;
+} muse_ui_preview_t;
+muse_ui_preview_t muse_ui_preview(void);
 /* Settings sub-pages turn off the tile swipe so they can use horizontal gestures. */
 void muse_ui_set_swipe_enabled(bool enabled);
 /* Temporarily applies a brightness while a slider is dragged. */
@@ -52,3 +69,6 @@ void muse_ui_camera_hint(bool visible);
 
 /* Bench testing, from any task: streams the screen over USB serial. */
 void muse_ui_request_snapshot(void);
+
+/* Consume the touch which wakes clock standby. Input task only. */
+void muse_ui_wake_touch(void);

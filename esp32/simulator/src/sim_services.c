@@ -155,6 +155,7 @@ void muse_settings_set_speaker_on(bool on)
     sim_services_set_speaker(on);
 }
 
+
 void muse_wifi_status(muse_wifi_status_t *out)
 {
     if (out) {

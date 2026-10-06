@@ -379,7 +379,16 @@ static void op_reset_setup(void) {
     app_reset_setup_async();
 }
 
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+#include "ota.h"
+#include "muse_pocket.h"
+static void pocket_ota_status(const ota_event_t *ev,void *user){(void)user;muse_pocket_send_event(ev->result==OTA_RESULT_APPLIED?"ota.applied":ev->result==OTA_RESULT_SKIPPED?"ota.skipped":"ota.failed",ev->detail);}
+static bool pocket_ota(const char *url,const char *sha){return ota_start_verified(url,sha,pocket_ota_status,NULL);}
+#endif
 static const muse_link_ops_t s_ops = {
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    .pocket_ota=pocket_ota,
+#endif
     .wifi_status = op_wifi_status,
     .wifi_apply = op_wifi_apply,
     .wifi_get = op_wifi_get,

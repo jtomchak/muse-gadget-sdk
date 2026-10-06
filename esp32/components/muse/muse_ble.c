@@ -15,6 +15,12 @@
  */
 
 #include "muse_ble.h"
+#include "sdkconfig.h"
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+#include "muse_pocket.h"
+#include "muse_pocket_ancs.h"
+#endif
+#include <stdatomic.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,10 +51,10 @@ static const ble_uuid128_t SVC_UUID = MUSE_UUID(0x01);
 static const ble_uuid128_t CMD_UUID = MUSE_UUID(0x02);
 static const ble_uuid128_t STATUS_UUID = MUSE_UUID(0x03);
 
-static uint16_t s_conn = BLE_HS_CONN_HANDLE_NONE;
+static _Atomic uint16_t s_conn = BLE_HS_CONN_HANDLE_NONE;
 static uint16_t s_status_handle;
 static volatile uint32_t s_passkey;
-static volatile bool s_secure;
+static atomic_bool s_secure;
 static char s_name[32];   /* the whole "MuseGadget-XXXXXX", not a prefix of it */
 static char s_last[64] = "ready";
 
@@ -230,6 +236,20 @@ static int on_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *
     return BLE_ATT_ERR_UNLIKELY;
 }
 
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+static const ble_uuid128_t POCKET_CMD_UUID=MUSE_UUID(4),POCKET_STATUS_UUID=MUSE_UUID(5);
+static uint16_t s_pocket_handle;
+static atomic_bool s_pocket_subscribed;
+static int pocket_access(uint16_t conn,uint16_t attr,struct ble_gatt_access_ctxt *ctxt,void *arg){
+    (void)conn;(void)attr;(void)arg;
+    if(ctxt->op==BLE_GATT_ACCESS_OP_READ_CHR){const char ready[]="{\"v\":1,\"ready\":true}";return os_mbuf_append(ctxt->om,ready,sizeof(ready)-1)==0?0:BLE_ATT_ERR_INSUFFICIENT_RES;}
+    if(ctxt->op==BLE_GATT_ACCESS_OP_WRITE_CHR){uint8_t data[512];uint16_t size;if(ble_hs_mbuf_to_flat(ctxt->om,data,sizeof(data),&size))return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;return muse_pocket_write(data,size)==0?0:BLE_ATT_ERR_INSUFFICIENT_RES;}return BLE_ATT_ERR_UNLIKELY;
+}
+int muse_ble_pocket_send(const uint8_t *data,size_t size){uint16_t conn=s_conn;if(!s_secure||!atomic_load(&s_pocket_subscribed)||conn==BLE_HS_CONN_HANDLE_NONE)return BLE_HS_ENOTCONN;struct os_mbuf *om=ble_hs_mbuf_from_flat(data,size);return om?ble_gatts_notify_custom(conn,s_pocket_handle,om):BLE_HS_ENOMEM;}
+size_t muse_ble_pocket_mtu(void){uint16_t conn=s_conn;size_t mtu=conn==BLE_HS_CONN_HANDLE_NONE?20:ble_att_mtu(conn)-3;return mtu>512?512:mtu;}
+bool muse_ble_pocket_subscribed(void){return atomic_load(&s_pocket_subscribed);}
+#endif
+
 static const struct ble_gatt_svc_def SERVICES[] = {
     {
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
@@ -247,6 +267,10 @@ static const struct ble_gatt_svc_def SERVICES[] = {
                 .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN |
                          BLE_GATT_CHR_F_NOTIFY,
             },
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+            {.uuid=&POCKET_CMD_UUID.u,.access_cb=pocket_access,.flags=BLE_GATT_CHR_F_WRITE|BLE_GATT_CHR_F_WRITE_ENC|BLE_GATT_CHR_F_WRITE_AUTHEN},
+            {.uuid=&POCKET_STATUS_UUID.u,.access_cb=pocket_access,.val_handle=&s_pocket_handle,.flags=BLE_GATT_CHR_F_READ|BLE_GATT_CHR_F_READ_ENC|BLE_GATT_CHR_F_READ_AUTHEN|BLE_GATT_CHR_F_NOTIFY},
+#endif
             { 0 },
         },
     },
@@ -326,6 +350,12 @@ int muse_ble_gap_event(struct ble_gap_event *ev)
     default:
         break;
     }
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    if(ev->type==BLE_GAP_EVENT_DISCONNECT)atomic_store(&s_pocket_subscribed,false);
+    if(ev->type==BLE_GAP_EVENT_SUBSCRIBE&&ev->subscribe.attr_handle==s_pocket_handle)atomic_store(&s_pocket_subscribed,ev->subscribe.cur_notify!=0);
+    if(ev->type==BLE_GAP_EVENT_CONNECT||ev->type==BLE_GAP_EVENT_DISCONNECT||ev->type==BLE_GAP_EVENT_ENC_CHANGE)muse_pocket_connection(s_conn,s_secure);
+    muse_pocket_ancs_gap(ev);
+#endif
     return 0;
 }
 

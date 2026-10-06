@@ -1,0 +1,205 @@
+# MusePocket
+
+Native iPhone companion for Moe on the Waveshare ESP32-S3 Touch AMOLED 1.75C.
+SwiftUI owns the interface. CoreBluetooth, AccessorySetupKit, EventKit, Speech,
+AVFoundation, Foundation Models and Keychain provide native services; UIKit
+handles image conversion and the share sheet. Firmware framing is portable C++;
+board/audio integrations remain alongside the SDK's existing C drivers.
+
+## Open and run
+
+Open `MusePocket.xcodeproj`, select the MusePocket scheme and an iPhone simulator.
+For a physical iPhone, select your Apple development team in Signing & Capabilities,
+use a unique bundle identifier if necessary, then run. No development team or
+signing secrets are committed. Minimum iOS 18; Xcode 26 or newer enables compiling
+Apple Foundation Models support. The project was validated with Xcode 27.
+
+The checked-in project is generated from `project.yml`:
+
+```sh
+brew install xcodegen
+xcodegen generate --spec ios/project.yml
+swift test --package-path ios/MusePocketCore
+xcodebuild -project ios/MusePocket.xcodeproj -scheme MusePocket \
+  -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+```
+
+For app/unit/UI tests, replace the destination with an installed iPhone simulator
+and the final `build` action with `test`. UI tests launch with `--preview`; that
+explicitly labelled mode uses sample device state and sends no Bluetooth commands.
+Ordinary launches require a real Moe. It does not substitute preview state when a
+connection or transfer fails.
+
+## Connect Moe
+
+1. Build the fork's Waveshare 1.75C firmware using ESP-IDF **6.0.1** and the existing
+   [board instructions](../esp32/devices/AGENTS.md). Keep
+   `CONFIG_MUSE_OPTIMIZED_EXPERIENCE=y` for the MusePocket service.
+2. Enable Phone setup in Moe's settings (the optional BOOT shortcut can open it).
+3. In MusePocket choose Pair Moe, or scan nearby devices. Confirm the six-digit
+   passkey shown on Moe. The service requires encryption and authenticated bonding.
+4. Refresh the dashboard, sync the clock, customize settings, then Apply settings.
+   Saved device state is read back after changes. A disconnect during a transfer
+   requires reconnecting and refreshing before retrying.
+
+## Included features
+
+- Dashboard: battery, Wi-Fi state, firmware, connection, secure pairing, automatic
+  reconnect and CoreBluetooth state restoration.
+- Clock: phone time, POSIX timezone choices, 12/24-hour format, dim minute clock,
+  pixel shifting and overnight screen-off. Wake remains available from buttons,
+  active touch scanning, optional enclosure tap and optional tilt from flat rest.
+- Controls: BOOT double-tap shortcut, tap threshold, audio/display/idle settings,
+  Wi-Fi and Muse service setup, native audio loopback request.
+- Tools: eight editable timers/recipes, synchronized to NVS on Moe; start, pause,
+  resume and reset, plus optional iPhone timer alerts. Built-in device tools remain.
+- Cards: eight saved notes/checklists, selected calendar events and reminders,
+  and an expiring Open-Meteo weather card for entered coordinates. Expiring cards
+  require synchronized device time. Moe defers cards while voice is active.
+- Personality: name, accent, Orbit/Pixel cat avatars or a 64×64 RGB565 image from
+  PhotosPicker. Voice and speech-rate choices apply to iPhone-generated replies.
+- Find Moe: wake its display and queue a chirp when audio is idle.
+- Firmware: HTTPS update manifest, iPhone checksum check, actual device-download
+  checksum check, existing image/signature verification and version gate. Firmware
+  redirects are refused. An accepted request is not proof of installation; reconnect
+  and check the reported firmware version. No eFuse or secure-boot setting changes.
+- Diagnostics: share firmware, free memory, uptime and operation labels via UIKit.
+  Wi-Fi passwords, tokens, transcripts, cards and raw audio are excluded.
+- iPhone notifications: opt-in ANCS on the firmware. Enable the system's notification
+  sharing permission when iOS requests it. Notification contents are transient,
+  displayed on Moe, and not logged or persisted. Pre-existing notifications are
+  skipped. Busy/overlapping notifications may be skipped rather than buffered
+  without bounds. Turning it off stops display of notification content.
+- Phone-assisted voice: hold Moe's microphone button with relay enabled to send
+  up to 15 seconds of IMA ADPCM. iPhone saves the WAV in a protected, five-note inbox,
+  connects directly to Muse for transcription and replies, generates an Apple
+  on-device reply with local transcription, or calls your HTTPS relay. Text plus compressed speech return to Moe; button input interrupts playback.
+
+## Native platform limits
+
+Apple's on-device reply model needs an Apple Intelligence-capable iPhone, iOS 26+
+with the model available, and on-device Speech recognition for voice input. The
+app reports availability errors and retains a voice note if processing fails.
+Muse mode uses iPhone cellular data or Wi-Fi and does not require Apple Intelligence.
+HTTPS mode needs your own functioning endpoint; MusePocket does not deploy one or
+invent replies when a provider is unavailable.
+
+CoreBluetooth restoration/background mode lets eligible Bluetooth events wake the
+app; iOS does not guarantee continuous execution. Notes received while the app is
+inactive are saved for processing when it is opened. Force-quitting, lost radio
+coverage or a suspended app can prevent delivery. Moe reports transfer failure;
+there is no guarantee that a note survives loss of device power during transfer.
+Bluetooth on this ESP32-S3 is BLE, not an iPhone Bluetooth headset or call-audio
+profile. Voice transfers use this custom protocol, not system audio routing.
+
+Moe's clock standby uses CPU light sleep between wake checks; its AMOLED panel and
+required wake circuitry remain powered. Screen-off saves more power. Dimming,
+pixel shifting and night-time screen-off reduce static exposure, but cannot promise
+an AMOLED lifespan. Tap/tilt wake, ANCS, physical BLE/audio throughput, OTA reboot,
+and battery consumption require testing on your assembled device and real iPhone.
+Initial validation used simulators and unsigned device builds. A later development
+build was installed and launched on an iPhone 12 with iOS 26.1; six native unit
+tests passed there. Physical UI automation could not initialize. BLE, audio and
+other hardware acceptance checks remain pending.
+
+## Muse voice through iPhone
+
+In Settings, enable **Route Moe’s voice through iPhone**. In Assistant, select
+**Muse**, set the host (default `hatch.metaaivm.com`) and save the account/device
+token used by the SDK's `hatch.token` setup. This is not the registration SDK token
+from gadgets.muse.ai. An account/device token discovers your VM with
+`https://api.muse.ai/fetch_vms`; an optional VM ID selects a specific Muse instead
+of the default. For a VM-specific auth token, enable **Use a direct VM token** and
+enter its VM ID; discovery is skipped. There is no silent auth fallback or login
+screen that extracts credentials from the official Muse app.
+
+Keep MusePocket open, connect Moe securely over BLE, disable Moe's Wi-Fi for the
+acceptance test, and hold its microphone button. After release, the phone receives
+up to 15 seconds of ADPCM, saves a protected WAV and connects over its own internet
+connection to `/v1/noise?vm_id=...`. The bearer credential stays in the header, not
+the URL. Apple CryptoKit supplies X25519, SHA256, HKDF and AES-GCM to the same C++
+`ClientSession` compiled by firmware. No separate relay server is required.
+
+The phone establishes `/chat/subscribe`, then sends the SDK voice-note attachment
+contract to `/chat/stream` as bounded chunks. Muse performs transcription and
+reply generation. The phone matches streamed replies to the acknowledged request,
+ignores unrelated messages, and speaks the resulting text with native TTS before
+returning text and 16 kHz ADPCM over BLE. Queue acceptance does not prove speaker
+playback completed; use Moe's `reply.played` event for that distinction.
+
+Phone credentials are stored in host-scoped Keychain entries; changing hosts does
+not reuse another host's token. Account discovery and WebSockets refuse redirects,
+use normal TLS certificate validation and do not log tokens or audio. A 90-second
+turn deadline, cancellation, bounded replies and a three-second settling interval
+prevent indefinite waits. Failed notes stay in the inbox. Completed replies are
+saved before playback, so **Deliver saved reply** can retry after a disconnect
+without another request to Muse, including after app restart. A connection lost
+before a completed reply may already have submitted the note: a manual retry can
+create another Muse request. Requests are not automatically retried.
+
+Run independent SDK interoperability checks on a Mac with Python `cryptography`:
+
+```sh
+MUSE_TEST_PYTHON=/path/to/python bash ios/tools/test-muse-relay.sh
+MUSE_TEST_PYTHON=/path/to/python bash ios/tools/test-muse-relay.sh \
+  xcodebuild -project ios/MusePocket.xcodeproj -scheme MusePocket \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.1' \
+  -derivedDataPath build/MusePocketVoice CODE_SIGNING_ALLOWED=NO test
+```
+
+The loopback responder uses the independent Python SDK and fake credentials. It
+verifies real WebSocket/Noise interoperability and the app's speech/delivery
+pipeline; it does not perform live Muse transcription or model inference. Live
+acceptance still needs a paired Waveshare, configured credentials and an iPhone
+with internet. Test both phone cellular and phone Wi-Fi with board Wi-Fi off.
+
+## HTTPS relay contract
+
+Configure the final HTTPS URL in Assistant and optionally save its bearer token
+in the iPhone Keychain. Redirects are refused so tokens stay on the configured
+endpoint. Request timeout is 60 seconds, response limit 64 KiB:
+
+```json
+{"v":1,"inputText":"Give me a short plan","voice":""}
+```
+
+For a voice note, `inputText` is replaced by:
+
+```json
+{"v":1,"audio":{"encoding":"wav","sampleRate":16000,"data":"BASE64_MONO_16BIT_WAV"},"voice":""}
+```
+
+Return HTTP 2xx and `{"reply":"A concise answer for Moe"}`. The phone renders the
+selected native voice and caps playback at 15 seconds. The endpoint must implement
+its own authentication, transcription/model call and retention policy. Requests
+are sent only when the user chooses HTTPS mode and processes a note or sends text.
+
+The update manifest is `{"board":"waveshare_s3_175c","version":"VERSION",
+"url":"https://YOUR_FINAL_IMAGE_URL","sha256":"64_HEX_CHARACTERS"}`. Use a trusted
+manifest for the matching board and a correctly signed application image, not a
+merged flash dump. Maximum image download is 4 MiB; the existing OTA partition and
+image verifier may impose a smaller limit. Never point at a different board image.
+
+See [the wire protocol](../docs/musepocket-protocol.md) and
+[upstream maintenance](../docs/waveshare-experience.md) for firmware boundaries.
+
+Software test results and reproduction commands are recorded in
+[the validation report](../docs/musepocket-validation.md).
+
+## TestFlight release
+
+Release version and build are taken from Xcode's `MARKETING_VERSION` and
+`CURRENT_PROJECT_VERSION`. The bundled privacy manifest declares app-local
+preferences and elapsed time used to expire Bluetooth frame assemblies.
+
+Before archiving or uploading, verify the selected App Store Connect provider and
+its corresponding Apple Developer signing team. The numeric App Store Connect
+provider ID and Xcode's alphanumeric signing team ID are different identifiers;
+a matching account name alone does not establish their relationship.
+
+Sign in to App Store Connect, create or verify the app record for
+`com.jtomchak.musepocket`, and confirm the provider. Then archive with a verified
+`DEVELOPMENT_TEAM`, Release configuration and automatic signing. Use
+`app-store-connect` export under that same verified team, preserving the archive
+and incrementing build numbers for subsequent uploads. Keep credentials outside
+the repository. Verify Apple processing separately from upload completion.

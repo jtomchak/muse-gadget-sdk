@@ -44,6 +44,18 @@
 #include "muse_state.h"
 #include "muse_text.h"
 #include "muse_wifi.h"
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+#include "muse_experience.h"
+#include "muse_standby.h"
+#if !CONFIG_MUSE_BOARD_SIMULATOR
+#include "muse_pocket.h"
+#endif
+#include <stdatomic.h>
+#include "muse_tools_ui.h"
+#define MUSE_PAGE_COUNT 3
+#else
+#define MUSE_PAGE_COUNT 2
+#endif
 #if CONFIG_MUSE_WATCHER_CAMERA
 #include "boards/watcher_camera.h"
 #endif
@@ -93,10 +105,19 @@ static lv_indev_t *s_indev;
 static lv_obj_t *s_tv;
 static lv_obj_t *s_face;
 static lv_obj_t *s_settings;
-static lv_obj_t *s_dots[2];
+static lv_obj_t *s_dots[MUSE_PAGE_COUNT];
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+static lv_obj_t *s_tools;
+#endif
 static lv_obj_t *s_wifi_icon;
 static lv_obj_t *s_ble_icon;
 static lv_obj_t *s_cover;
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+static lv_obj_t *s_clock;
+static bool s_clock_visible;
+static atomic_bool s_wake_touch;
+static atomic_int s_requested_page = -1;
+#endif
 static lv_obj_t *s_pair;
 static lv_obj_t *s_pair_code;
 static lv_obj_t *s_pair_title;
@@ -144,6 +165,12 @@ static int s_preview_brightness = -1;
 static int s_shown_page = -1;
 static int s_shown_speaker = -1;
 static muse_mode_t s_last_mode = MUSE_MODE_COUNT;
+#if CONFIG_MUSE_BOARD_SIMULATOR
+static uint32_t s_avatar_frames;
+#endif
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+static int64_t s_next_avatar_us;
+#endif
 
 /*
  * While Muse is thinking or speaking it shrinks to make room for the reply:
@@ -798,7 +825,7 @@ static void build_screen(void)
 
     lv_obj_t *face = scr;
     if (muse_board->touch) {
-        /* Swipe left from Muse for settings. */
+        /* Swipe between the companion, local tools, and settings. */
         s_tv = lv_tileview_create(scr);
         lv_obj_set_style_bg_color(s_tv, lv_color_black(), 0);
         lv_obj_set_style_bg_opa(s_tv, LV_OPA_COVER, 0);
@@ -811,7 +838,11 @@ static void build_screen(void)
          * shows as a different-coloured square around the character. */
         lv_obj_set_style_bg_color(s_face, lv_color_black(), 0);
         lv_obj_set_style_bg_opa(s_face, LV_OPA_COVER, 0);
-        s_settings = lv_tileview_add_tile(s_tv, 1, 0, LV_DIR_LEFT);
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+        s_tools = lv_tileview_add_tile(s_tv, 1, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
+        muse_tools_ui_build(s_tools);
+#endif
+        s_settings = lv_tileview_add_tile(s_tv, MUSE_PAGE_COUNT - 1, 0, LV_DIR_LEFT);
         face = s_face;
     }
 
@@ -858,6 +889,9 @@ static void build_screen(void)
     s_muse_y = s_big_y;
     lv_obj_add_flag(s_canvas, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(s_canvas, on_canvas_clicked, LV_EVENT_CLICKED, NULL);
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE && !CONFIG_MUSE_BOARD_SIMULATOR
+    muse_pocket_avatar_build(s_canvas);
+#endif
     if (s_ring) {
         /* The canvas's black corners reach the bezel; keep the ring on top. */
         lv_obj_move_foreground(s_ring);
@@ -1025,7 +1059,7 @@ static void build_overlays(void)
     lv_obj_t *scr = lv_screen_active();
 
     /* Page dots. */
-    for (int i = 0; i < 2 && s_tv; i++) {
+    for (int i = 0; i < MUSE_PAGE_COUNT && s_tv; i++) {
         lv_obj_t *d = lv_obj_create(scr);
         lv_obj_remove_style_all(d);
         lv_obj_set_size(d, 8, 8);
@@ -1033,7 +1067,7 @@ static void build_overlays(void)
         lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
         lv_obj_set_style_bg_color(d, lv_color_hex(COLOR_DOT_OFF), 0);
         lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_align(d, LV_ALIGN_BOTTOM_MID, i ? 8 : -8, -14);
+        lv_obj_align(d, LV_ALIGN_BOTTOM_MID, i * 16 - (MUSE_PAGE_COUNT - 1) * 8, -14);
         s_dots[i] = d;
     }
 
@@ -1096,6 +1130,11 @@ static void build_overlays(void)
     lv_obj_add_event_cb(s_cover, on_cover_event, LV_EVENT_PRESSED, NULL);
     lv_obj_add_event_cb(s_cover, on_cover_event, LV_EVENT_RELEASED, NULL);
     lv_obj_add_event_cb(s_cover, on_cover_event, LV_EVENT_PRESS_LOST, NULL);
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    s_clock = make_label(s_cover, &lv_font_montserrat_48, 0x999999);
+    lv_obj_center(s_clock);
+    lv_obj_add_flag(s_clock, LV_OBJ_FLAG_HIDDEN);
+#endif
 
     if (s_indev) {
         lv_indev_add_event_cb(s_indev, on_any_press, LV_EVENT_PRESSED, NULL);
@@ -1119,6 +1158,41 @@ bool muse_ui_dark(void)
 static bool update_sleep(void)
 {
     bool asleep = muse_state_asleep();
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    bool clock = asleep && muse_standby_enabled();
+    if (clock) {
+        static int last_minute = -1;
+        char text[6]; int minute;
+        muse_standby_clock(text, &minute);
+        if (!s_clock_visible || minute != last_minute) {
+            lv_label_set_text(s_clock, text);
+            /* Move the illuminated pixels gently once per minute. */
+            lv_obj_align(s_clock, LV_ALIGN_CENTER, (minute % 5 - 2)*6, ((minute/5)%5-2)*6);
+            last_minute = minute;
+            muse_standby_rendered((uint32_t)(esp_timer_get_time()/1000));
+        }
+        if (!s_clock_visible) {
+            muse_menu_close();
+            if (s_dark && muse_board->panel_sleep) muse_board->panel_sleep(false);
+            s_dark = false;
+            lv_obj_set_style_bg_opa(s_cover, LV_OPA_COVER, 0);
+            lv_obj_remove_flag(s_cover, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(s_clock, LV_OBJ_FLAG_HIDDEN);
+            s_clock_visible = true;
+        }
+        int brightness = muse_settings_brightness();
+        apply_brightness(brightness < 8 ? brightness : 8);
+        return true;
+    }
+    muse_standby_exit();
+    if (s_clock_visible) {
+        s_clock_visible = false;
+        lv_obj_add_flag(s_clock, LV_OBJ_FLAG_HIDDEN);
+        if (atomic_exchange(&s_wake_touch, false))
+            lv_obj_set_style_bg_opa(s_cover, LV_OPA_TRANSP, 0);
+        else lv_obj_add_flag(s_cover, LV_OBJ_FLAG_HIDDEN);
+    }
+#endif
     if (asleep && !s_dark) {
         muse_menu_close();
         apply_brightness(0);
@@ -1140,6 +1214,11 @@ static bool update_sleep(void)
     }
     if (!s_dark) {
         int target = muse_settings_brightness();
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+        target = muse_experience_brightness(target, muse_state_on_battery(),
+            muse_state_mode(NULL) == MUSE_MODE_IDLE, muse_state_idle_secs(),
+            s_preview_brightness >= 0 || (s_tv && lv_tileview_get_tile_active(s_tv) == s_settings));
+#endif
         if (s_preview_brightness >= 0) {
             if (s_preview_brightness == target) {
                 s_preview_brightness = -1;
@@ -1179,21 +1258,28 @@ static void update_chrome(float now)
     s_next_settings_tick = now + SETTINGS_TICK_S;
 
     if (s_tv) {
-        int page = lv_tileview_get_tile_active(s_tv) == s_settings;
-        bool subpage = muse_settings_ui_in_subpage();
-        bool swipe = !page || !subpage;
+        lv_obj_t *tile = lv_tileview_get_tile_active(s_tv);
+        bool settings = tile == s_settings;
+        int page = settings ? MUSE_PAGE_COUNT - 1 : 0;
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+        if (tile == s_tools) {
+            page = 1;
+        }
+#endif
+        bool subpage = settings && muse_settings_ui_in_subpage();
+        bool swipe = !subpage;
         if (swipe != lv_obj_has_flag(s_tv, LV_OBJ_FLAG_SCROLLABLE)) {
             lv_obj_set_flag(s_tv, LV_OBJ_FLAG_SCROLLABLE, swipe);
         }
         int shown = page * 2 + subpage;
         if (shown != s_shown_page) {
-            for (int i = 0; i < 2; i++) {
+            for (int i = 0; i < MUSE_PAGE_COUNT; i++) {
                 lv_obj_set_style_bg_color(s_dots[i], lv_color_hex(i == page ? COLOR_ACCENT : COLOR_DOT_OFF), 0);
-                lv_obj_set_flag(s_dots[i], LV_OBJ_FLAG_HIDDEN, page && subpage);
+                lv_obj_set_flag(s_dots[i], LV_OBJ_FLAG_HIDDEN, subpage);
             }
             s_shown_page = shown;
         }
-        muse_settings_ui_tick(lv_obj_get_scroll_x(s_tv) > 0);
+        muse_settings_ui_tick(settings);
     }
 
     /* Joining, the icon blinks: the compact layout has no state label. */
@@ -1217,6 +1303,11 @@ static void update_chrome(float now)
      * app) and the speaker button has replies to mute. */
     muse_hatch_status_t h;
     muse_hatch_status(&h);
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    if (w.state == MUSE_WIFI_CONNECTED && h.state != MUSE_HATCH_REACHABLE) {
+        s_idle_name = h.state == MUSE_HATCH_NOT_SET ? "SET UP MUSE" : "MUSE OFFLINE";
+    }
+#endif
     bool paired = h.state != MUSE_HATCH_NOT_SET;
 
     /* The gadget's name, until it's paired. Emptied rather than hidden: the
@@ -1226,6 +1317,10 @@ static void update_chrome(float now)
     const lv_font_t *name_font = s_small ? &lv_font_unscii_8 : &lv_font_unscii_16;
     int name_cw = lv_font_get_glyph_width(name_font, 'M', ' ');
     const char *shown = paired ? "" : b.name;
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE && !CONFIG_MUSE_BOARD_SIMULATOR
+    pocket_settings_t pocket_name;muse_pocket_settings(&pocket_name);
+    if(!b.passkey)shown=pocket_name.name;
+#endif
     if (name_cw > 0 && (int)strlen(shown) * name_cw > s_w) {
         const char *tail = strrchr(shown, '-');
         if (tail && tail[1]) {
@@ -1331,6 +1426,11 @@ static void update_status(muse_mode_t mode, float now)
 {
     uint32_t accent = muse_pixel_accent(mode);
     const char *name = mode == MUSE_MODE_IDLE ? s_idle_name : MODE_NAMES[mode];
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    if (mode == MUSE_MODE_IDLE && muse_experience_preparing((uint32_t)(esp_timer_get_time() / 1000))) {
+        name = "PREPARING MIC";
+    }
+#endif
 
     if (name != s_shown_name) {
         lv_label_set_text(s_state_lbl, name);
@@ -1483,6 +1583,15 @@ static void frame_tick(lv_timer_t *timer)
     float mode_t;
     muse_mode_t mode = muse_state_mode(&mode_t);
     float now = (float)esp_timer_get_time() / 1e6f;
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    int requested = atomic_exchange(&s_requested_page, -1);
+    if (requested >= 0) muse_ui_show_page((unsigned)requested);
+    muse_tools_ui_tick();
+#if !CONFIG_MUSE_BOARD_SIMULATOR
+    muse_pocket_tick();
+#endif
+    bool mode_changed = mode != s_last_mode;
+#endif
 
     if (mode != s_last_mode) {
         if (mode == MUSE_MODE_LISTENING) {
@@ -1519,8 +1628,29 @@ static void frame_tick(lv_timer_t *timer)
         .level = s_level,
         .happy = muse_state_happiness(),
     };
-    muse_pixel_render(&pose);
-    invalidate_muse();
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    int64_t now_us = esp_timer_get_time();
+    uint32_t avatar_ms = muse_experience_avatar_ms(
+        mode == MUSE_MODE_LISTENING || mode == MUSE_MODE_SPEAKING,
+        mode == MUSE_MODE_IDLE && muse_state_happiness() <= 0,
+        muse_state_on_battery(), muse_board->frame_ms);
+    if (mode_changed || now_us >= s_next_avatar_us) {
+        s_next_avatar_us = now_us + (int64_t)avatar_ms * 1000;
+#endif
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE && !CONFIG_MUSE_BOARD_SIMULATOR
+        if(!muse_pocket_avatar_visible()) {
+#endif
+        muse_pixel_render(&pose);
+        invalidate_muse();
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE && !CONFIG_MUSE_BOARD_SIMULATOR
+        }
+#endif
+#if CONFIG_MUSE_BOARD_SIMULATOR
+        s_avatar_frames++;
+#endif
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    }
+#endif
 
     update_status(mode, now);
 }
@@ -1588,6 +1718,30 @@ void muse_ui_show_face(void)
     lv_obj_add_flag(s_tv, LV_OBJ_FLAG_SCROLLABLE);
     lv_tileview_set_tile(s_tv, s_face, LV_ANIM_ON);
 }
+
+bool muse_ui_show_page(unsigned page)
+{
+    if (!s_tv || page >= MUSE_PAGE_COUNT) return false;
+    lv_obj_add_flag(s_tv, LV_OBJ_FLAG_SCROLLABLE);
+    lv_tileview_set_tile_by_index(s_tv, page, 0, LV_ANIM_OFF);
+    s_shown_page = -1;
+    s_next_settings_tick = 0;
+    return true;
+}
+
+#if CONFIG_MUSE_BOARD_SIMULATOR
+muse_ui_preview_t muse_ui_preview(void)
+{
+    unsigned page = lv_tileview_get_tile_active(s_tv) == s_settings ? MUSE_PAGE_COUNT - 1 : 0;
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    if (lv_tileview_get_tile_active(s_tv) == s_tools) page = 1;
+#endif
+    return (muse_ui_preview_t){ .state = lv_label_get_text(s_state_lbl),
+        .avatar_frames = s_avatar_frames, .page = page, .pages = MUSE_PAGE_COUNT,
+        .brightness = s_brightness, .dark = s_dark,
+        .clock = lv_label_get_text(s_clock), .clock_visible = s_clock_visible };
+}
+#endif
 
 void muse_ui_set_swipe_enabled(bool enabled)
 {
@@ -1675,3 +1829,19 @@ void muse_ui_camera_hint(bool visible)
     muse_board->display_unlock();
 }
 #endif
+
+void muse_ui_wake_touch(void)
+{
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    atomic_store(&s_wake_touch, true);
+#endif
+}
+
+void muse_ui_request_page(unsigned page)
+{
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    if (page < MUSE_PAGE_COUNT) atomic_store(&s_requested_page, (int)page);
+#else
+    (void)page;
+#endif
+}

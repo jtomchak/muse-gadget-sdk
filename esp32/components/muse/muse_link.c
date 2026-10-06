@@ -228,3 +228,5 @@ void muse_wifi_forget(const char *ssid)
         s_ops->wifi_forget(ssid);
     }
 }
+
+bool muse_link_pocket_ota(const char *url,const char *sha256){return s_ops && s_ops->pocket_ota && s_ops->pocket_ota(url,sha256);}

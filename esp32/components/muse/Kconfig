@@ -90,6 +90,25 @@ menu "Muse"
         bool
         default y if !MUSE_BOARD_NONE
 
+    config MUSE_OPTIMIZED_EXPERIENCE
+        bool "Responsive companion and offline tools"
+        depends on MUSE_ENABLED && MUSE_BOARD_WAVESHARE_S3_175C
+        select BT_NIMBLE_ROLE_CENTRAL
+        select BT_NIMBLE_GATT_CLIENT
+        default y
+        help
+            Adds immediate input feedback, a local tools page, adaptive
+            animation, and battery dimming to the Waveshare 1.75C.
+            Disable to use the upstream experience unchanged.
+
+    config MUSE_CLOCK_TIMEZONE
+        string "Standby clock POSIX timezone"
+        depends on MUSE_OPTIMIZED_EXPERIENCE
+        default "MST7"
+        help
+            POSIX TZ string. MST7 is Arizona; UTC0 is UTC.
+            Clock stays unset until SNTP sync.
+
     # Always defined, unlike the target-dependent board options, so
     # idf_component.yml rules can select each board's managed components.
     config MUSE_BOARD_ID
