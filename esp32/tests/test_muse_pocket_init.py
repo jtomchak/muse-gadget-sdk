@@ -71,5 +71,5 @@ int main(void){
     return 0;
 }
 ''')
-            built=subprocess.run([*shlex.split(os.environ.get('CC','cc')),'-std=c11','-Wall','-Wextra','-Werror','-I'+str(muse),'-I'+str(cj),str(test),str(muse/'pocket_model.c'),str(cj/'cJSON.c'),'-o',str(binary)],capture_output=True,text=True)
+            built=subprocess.run([*shlex.split(os.environ.get('CC','cc')),'-std=c11','-Wall','-Wextra','-Werror','-I'+str(muse),'-I'+str(cj),str(test),str(muse/'pocket_model.c'),str(cj/'cJSON.c'),'-lm','-o',str(binary)],capture_output=True,text=True)
             self.assertEqual(built.returncode,0,built.stderr);run=subprocess.run([str(binary)],capture_output=True,text=True);self.assertEqual(run.returncode,0,run.stderr)

@@ -49,8 +49,32 @@ managed dependencies. The workflows fetch dependencies before testing.
 
 ## Evidence boundary
 
-No physical ESP32 or iPhone was used. Secure pairing, background restoration,
+Initial validation used no physical ESP32 or iPhone. Secure pairing, background restoration,
 ANCS permission behavior, native Speech/Foundation Models, real relay responses,
 voice/audio timing, NVS power-cycle persistence, OTA boot and battery/panel
 measurements remain the [physical acceptance checklist](musepocket-protocol.md#physical-acceptance-still-required).
 No hardware was flashed, no eFuses changed, and no hosted assistant was deployed.
+
+## Connected iPhone development test
+
+A development-signed Debug build of MusePocket 0.1.0 (1) was subsequently
+installed and launched on Jesse's physical iPhone 12 running iOS 26.1. CoreDevice
+confirmed the installed bundle `com.jtomchak.musepocket` and a running process.
+All six native XCTest cases passed on this phone.
+
+The UI test runner timed out while enabling device automation before its test
+could start. This is not a passed physical UI test; the app was relaunched in
+normal mode for manual testing. The simulator UI flow remains separately verified.
+No BLE pairing, speech/model, relay response or ANCS acceptance result is implied.
+
+This was direct development installation, with no TestFlight export or upload.
+The requested App Store Connect provider remains subject to explicit verification
+before any release operation.
+
+During this check, GitHub's Linux jobs exposed two portability issues: POSIX
+time declarations in the standby simulator and an omitted math-library link in
+the initialization test. The patch adds the POSIX feature declaration and `-lm`.
+After these fixes, all 227 host tests passed without skips, the Waveshare
+firmware rebuilt successfully, and the ASan/UBSan simulator passed. GitHub
+MusePocket iPhone CI passed for commit `4ca6739`; the corrected Linux jobs
+require a fresh run.

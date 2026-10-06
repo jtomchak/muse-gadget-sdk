@@ -96,7 +96,10 @@ required wake circuitry remain powered. Screen-off saves more power. Dimming,
 pixel shifting and night-time screen-off reduce static exposure, but cannot promise
 an AMOLED lifespan. Tap/tilt wake, ANCS, physical BLE/audio throughput, OTA reboot,
 and battery consumption require testing on your assembled device and real iPhone.
-No connected physical device was available for this implementation's validation.
+Initial validation used simulators and unsigned device builds. A later development
+build was installed and launched on an iPhone 12 with iOS 26.1; six native unit
+tests passed there. Physical UI automation could not initialize. BLE, audio and
+other hardware acceptance checks remain pending.
 
 ## HTTPS relay contract
 
