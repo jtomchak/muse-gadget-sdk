@@ -44,6 +44,9 @@
 #include "muse_state.h"
 #include "muse_text.h"
 #include "muse_wifi.h"
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+#include "muse_experience.h"
+#endif
 #if CONFIG_MUSE_WATCHER_CAMERA
 #include "boards/watcher_camera.h"
 #endif
@@ -1331,6 +1334,11 @@ static void update_status(muse_mode_t mode, float now)
 {
     uint32_t accent = muse_pixel_accent(mode);
     const char *name = mode == MUSE_MODE_IDLE ? s_idle_name : MODE_NAMES[mode];
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    if (mode == MUSE_MODE_IDLE && muse_experience_preparing((uint32_t)(esp_timer_get_time() / 1000))) {
+        name = "PREPARING MIC";
+    }
+#endif
 
     if (name != s_shown_name) {
         lv_label_set_text(s_state_lbl, name);

@@ -43,6 +43,10 @@
 #include "muse_ui.h"
 #include "muse_voice.h"
 #include "muse_wifi.h"
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+#include "muse_experience.h"
+#include "esp_timer.h"
+#endif
 #if CONFIG_MUSE_WATCHER_CAMERA
 #include "boards/watcher_camera.h"
 #endif
@@ -78,7 +82,15 @@ static void post(muse_ptt_t type, bool wake)
 {
     muse_input_event_t ev = { .type = type, .wake = wake };
     ESP_LOGI(TAG, "PTT %s%s", type == MUSE_PTT_DOWN ? "down" : "up", wake ? " (waking)" : "");
-    xQueueSend(s_queue, &ev, 0);
+    bool sent = xQueueSend(s_queue, &ev, 0) == pdTRUE;
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    if (sent) {
+        muse_experience_press(type == MUSE_PTT_DOWN && !wake,
+                              (uint32_t)(esp_timer_get_time() / 1000));
+    }
+#else
+    (void)sent;
+#endif
 }
 
 static bool update_power(void);

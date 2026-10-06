@@ -90,6 +90,15 @@ menu "Muse"
         bool
         default y if !MUSE_BOARD_NONE
 
+    config MUSE_OPTIMIZED_EXPERIENCE
+        bool "Responsive companion and offline tools"
+        depends on MUSE_ENABLED && MUSE_BOARD_WAVESHARE_S3_175C
+        default y
+        help
+            Adds immediate input feedback, a local tools page, adaptive
+            animation, and battery dimming to the Waveshare 1.75C.
+            Disable to use the upstream experience unchanged.
+
     # Always defined, unlike the target-dependent board options, so
     # idf_component.yml rules can select each board's managed components.
     config MUSE_BOARD_ID
