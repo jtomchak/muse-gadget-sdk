@@ -46,6 +46,10 @@
 #include "muse_wifi.h"
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
 #include "muse_experience.h"
+#include "muse_tools_ui.h"
+#define MUSE_PAGE_COUNT 3
+#else
+#define MUSE_PAGE_COUNT 2
 #endif
 #if CONFIG_MUSE_WATCHER_CAMERA
 #include "boards/watcher_camera.h"
@@ -96,7 +100,10 @@ static lv_indev_t *s_indev;
 static lv_obj_t *s_tv;
 static lv_obj_t *s_face;
 static lv_obj_t *s_settings;
-static lv_obj_t *s_dots[2];
+static lv_obj_t *s_dots[MUSE_PAGE_COUNT];
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+static lv_obj_t *s_tools;
+#endif
 static lv_obj_t *s_wifi_icon;
 static lv_obj_t *s_ble_icon;
 static lv_obj_t *s_cover;
@@ -801,7 +808,7 @@ static void build_screen(void)
 
     lv_obj_t *face = scr;
     if (muse_board->touch) {
-        /* Swipe left from Muse for settings. */
+        /* Swipe between the companion, local tools, and settings. */
         s_tv = lv_tileview_create(scr);
         lv_obj_set_style_bg_color(s_tv, lv_color_black(), 0);
         lv_obj_set_style_bg_opa(s_tv, LV_OPA_COVER, 0);
@@ -814,7 +821,11 @@ static void build_screen(void)
          * shows as a different-coloured square around the character. */
         lv_obj_set_style_bg_color(s_face, lv_color_black(), 0);
         lv_obj_set_style_bg_opa(s_face, LV_OPA_COVER, 0);
-        s_settings = lv_tileview_add_tile(s_tv, 1, 0, LV_DIR_LEFT);
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+        s_tools = lv_tileview_add_tile(s_tv, 1, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
+        muse_tools_ui_build(s_tools);
+#endif
+        s_settings = lv_tileview_add_tile(s_tv, MUSE_PAGE_COUNT - 1, 0, LV_DIR_LEFT);
         face = s_face;
     }
 
@@ -1028,7 +1039,7 @@ static void build_overlays(void)
     lv_obj_t *scr = lv_screen_active();
 
     /* Page dots. */
-    for (int i = 0; i < 2 && s_tv; i++) {
+    for (int i = 0; i < MUSE_PAGE_COUNT && s_tv; i++) {
         lv_obj_t *d = lv_obj_create(scr);
         lv_obj_remove_style_all(d);
         lv_obj_set_size(d, 8, 8);
@@ -1036,7 +1047,7 @@ static void build_overlays(void)
         lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
         lv_obj_set_style_bg_color(d, lv_color_hex(COLOR_DOT_OFF), 0);
         lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_align(d, LV_ALIGN_BOTTOM_MID, i ? 8 : -8, -14);
+        lv_obj_align(d, LV_ALIGN_BOTTOM_MID, i * 16 - (MUSE_PAGE_COUNT - 1) * 8, -14);
         s_dots[i] = d;
     }
 
@@ -1182,21 +1193,29 @@ static void update_chrome(float now)
     s_next_settings_tick = now + SETTINGS_TICK_S;
 
     if (s_tv) {
-        int page = lv_tileview_get_tile_active(s_tv) == s_settings;
-        bool subpage = muse_settings_ui_in_subpage();
-        bool swipe = !page || !subpage;
+        lv_obj_t *tile = lv_tileview_get_tile_active(s_tv);
+        bool settings = tile == s_settings;
+        int page = settings ? MUSE_PAGE_COUNT - 1 : 0;
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+        if (tile == s_tools) {
+            page = 1;
+            muse_tools_ui_tick();
+        }
+#endif
+        bool subpage = settings && muse_settings_ui_in_subpage();
+        bool swipe = !subpage;
         if (swipe != lv_obj_has_flag(s_tv, LV_OBJ_FLAG_SCROLLABLE)) {
             lv_obj_set_flag(s_tv, LV_OBJ_FLAG_SCROLLABLE, swipe);
         }
         int shown = page * 2 + subpage;
         if (shown != s_shown_page) {
-            for (int i = 0; i < 2; i++) {
+            for (int i = 0; i < MUSE_PAGE_COUNT; i++) {
                 lv_obj_set_style_bg_color(s_dots[i], lv_color_hex(i == page ? COLOR_ACCENT : COLOR_DOT_OFF), 0);
-                lv_obj_set_flag(s_dots[i], LV_OBJ_FLAG_HIDDEN, page && subpage);
+                lv_obj_set_flag(s_dots[i], LV_OBJ_FLAG_HIDDEN, subpage);
             }
             s_shown_page = shown;
         }
-        muse_settings_ui_tick(lv_obj_get_scroll_x(s_tv) > 0);
+        muse_settings_ui_tick(settings);
     }
 
     /* Joining, the icon blinks: the compact layout has no state label. */
@@ -1595,6 +1614,16 @@ void muse_ui_show_face(void)
     }
     lv_obj_add_flag(s_tv, LV_OBJ_FLAG_SCROLLABLE);
     lv_tileview_set_tile(s_tv, s_face, LV_ANIM_ON);
+}
+
+bool muse_ui_show_page(unsigned page)
+{
+    if (!s_tv || page >= MUSE_PAGE_COUNT) return false;
+    lv_obj_add_flag(s_tv, LV_OBJ_FLAG_SCROLLABLE);
+    lv_tileview_set_tile_by_index(s_tv, page, 0, LV_ANIM_OFF);
+    s_shown_page = -1;
+    s_next_settings_tick = 0;
+    return true;
 }
 
 void muse_ui_set_swipe_enabled(bool enabled)

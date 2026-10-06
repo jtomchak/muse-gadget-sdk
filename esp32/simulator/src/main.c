@@ -294,6 +294,9 @@ static bool apply_setting(const char *key, const char *value, bool real_time)
     bool flag;
     long number;
     float scalar;
+    if (!strcmp(key, "page") && parse_long(value, 0, 2, &number)) {
+        return muse_ui_show_page((unsigned)number);
+    }
     if (!strcmp(key, "face")) {
         return set_face(value);
     }

@@ -34,6 +34,8 @@ bool muse_ui_dark(void);
 
 /* Slide back to the face (e.g. when a talk starts). */
 void muse_ui_show_face(void);
+/* Select a top-level page immediately (0 companion, last settings). */
+bool muse_ui_show_page(unsigned page);
 /* Settings sub-pages turn off the tile swipe so they can use horizontal gestures. */
 void muse_ui_set_swipe_enabled(bool enabled);
 /* Temporarily applies a brightness while a slider is dragged. */
