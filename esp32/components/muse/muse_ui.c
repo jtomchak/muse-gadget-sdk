@@ -1157,6 +1157,11 @@ static bool update_sleep(void)
     }
     if (!s_dark) {
         int target = muse_settings_brightness();
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+        target = muse_experience_brightness(target, muse_state_on_battery(),
+            muse_state_mode(NULL) == MUSE_MODE_IDLE, muse_state_idle_secs(),
+            s_preview_brightness >= 0 || (s_tv && lv_tileview_get_tile_active(s_tv) == s_settings));
+#endif
         if (s_preview_brightness >= 0) {
             if (s_preview_brightness == target) {
                 s_preview_brightness = -1;

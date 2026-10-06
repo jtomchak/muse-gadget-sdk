@@ -315,6 +315,9 @@ static void check_sleep(void)
         return;
     }
     int after = muse_settings_sleep_s();
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    after = muse_experience_sleep_s(after, muse_state_on_battery());
+#endif
     float mode_t;
     if (after && !muse_state_asleep() && muse_state_mode(&mode_t) == MUSE_MODE_IDLE
         && muse_state_idle_secs() > after) {

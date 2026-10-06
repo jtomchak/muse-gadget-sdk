@@ -27,3 +27,16 @@ uint32_t muse_experience_avatar_ms(bool audio_active, bool idle, bool battery,
     uint32_t period = audio_active ? 120 : idle ? (battery ? 200 : 80) : normal_ms;
     return period > normal_ms ? period : normal_ms;
 }
+
+int muse_experience_brightness(int saved_pct, bool battery, bool idle,
+                              float idle_secs, bool preview_or_settings)
+{
+    return battery && idle && idle_secs >= 20 && !preview_or_settings && saved_pct > 30
+        ? 30 : saved_pct;
+}
+
+int muse_experience_sleep_s(int saved_secs, bool battery)
+{
+    /* Respect the user's explicit Never setting and shorter sleep choices. */
+    return battery && saved_secs > 60 ? 60 : saved_secs;
+}
