@@ -21,7 +21,9 @@ bool muse_experience_preparing(uint32_t now_ms)
     return atomic_load(&s_pressed) && now_ms - atomic_load(&s_pressed_at) < 1000;
 }
 
-uint32_t muse_experience_avatar_ms(bool audio_active, uint32_t normal_ms)
+uint32_t muse_experience_avatar_ms(bool audio_active, bool idle, bool battery,
+                                 uint32_t normal_ms)
 {
-    return audio_active && normal_ms < 120 ? 120 : normal_ms;
+    uint32_t period = audio_active ? 120 : idle ? (battery ? 200 : 80) : normal_ms;
+    return period > normal_ms ? period : normal_ms;
 }

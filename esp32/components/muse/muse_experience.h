@@ -12,4 +12,5 @@ void muse_experience_press(bool down, uint32_t now_ms);
 bool muse_experience_preparing(uint32_t now_ms);
 
 /* Keep the UI poll quick, but reduce expensive avatar work during audio. */
-uint32_t muse_experience_avatar_ms(bool audio_active, uint32_t normal_ms);
+uint32_t muse_experience_avatar_ms(bool audio_active, bool idle, bool battery,
+                                 uint32_t normal_ms);

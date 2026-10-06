@@ -24,7 +24,7 @@ class ExperienceTest(unittest.TestCase):
         cls.policy.muse_experience_press.argtypes = [ctypes.c_bool, ctypes.c_uint32]
         cls.policy.muse_experience_preparing.argtypes = [ctypes.c_uint32]
         cls.policy.muse_experience_preparing.restype = ctypes.c_bool
-        cls.policy.muse_experience_avatar_ms.argtypes = [ctypes.c_bool, ctypes.c_uint32]
+        cls.policy.muse_experience_avatar_ms.argtypes = [ctypes.c_bool] * 3 + [ctypes.c_uint32]
         cls.policy.muse_experience_avatar_ms.restype = ctypes.c_uint32
 
     @classmethod
@@ -48,6 +48,11 @@ class ExperienceTest(unittest.TestCase):
         self.assertFalse(self.policy.muse_experience_preparing(984))
 
     def test_audio_reduces_avatar_work_without_speeding_up_slower_boards(self):
-        self.assertEqual(self.policy.muse_experience_avatar_ms(True, 40), 120)
-        self.assertEqual(self.policy.muse_experience_avatar_ms(False, 40), 40)
-        self.assertEqual(self.policy.muse_experience_avatar_ms(True, 200), 200)
+        self.assertEqual(self.policy.muse_experience_avatar_ms(True, False, False, 40), 120)
+        self.assertEqual(self.policy.muse_experience_avatar_ms(False, False, False, 40), 40)
+        self.assertEqual(self.policy.muse_experience_avatar_ms(True, False, False, 200), 200)
+
+    def test_idle_battery_is_slower_than_desk_and_active_reactions(self):
+        self.assertEqual(self.policy.muse_experience_avatar_ms(False, True, False, 40), 80)
+        self.assertEqual(self.policy.muse_experience_avatar_ms(False, True, True, 40), 200)
+        self.assertEqual(self.policy.muse_experience_avatar_ms(False, False, True, 40), 40)

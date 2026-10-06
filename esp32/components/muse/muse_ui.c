@@ -1555,7 +1555,9 @@ static void frame_tick(lv_timer_t *timer)
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
     int64_t now_us = esp_timer_get_time();
     uint32_t avatar_ms = muse_experience_avatar_ms(
-        mode == MUSE_MODE_LISTENING || mode == MUSE_MODE_SPEAKING, muse_board->frame_ms);
+        mode == MUSE_MODE_LISTENING || mode == MUSE_MODE_SPEAKING,
+        mode == MUSE_MODE_IDLE && muse_state_happiness() <= 0,
+        muse_state_on_battery(), muse_board->frame_ms);
     if (mode_changed || now_us >= s_next_avatar_us) {
         s_next_avatar_us = now_us + (int64_t)avatar_ms * 1000;
 #endif
