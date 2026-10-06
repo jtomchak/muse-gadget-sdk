@@ -2,6 +2,9 @@
  * Copyright (c) 2026 jtomchak
  */
 #include "muse_tools_ui.h"
+#if !CONFIG_MUSE_BOARD_SIMULATOR
+#include "muse_pocket.h"
+#endif
 #include "muse_settings.h"
 #include "muse_state.h"
 #include "muse_local_tools.h"
@@ -19,8 +22,20 @@ static unsigned s_tool;
 static muse_timer_t s_timer;
 static unsigned s_timer_tool;
 static bool s_completion_pending;
-
 enum { TOOL_BRIGHTNESS, TOOL_SPEAKER, TOOL_FOCUS, TOOL_RECIPE_FIRST };
+static pocket_preset_t s_presets[POCKET_ITEMS];
+static int s_preset_count;
+static muse_recipe_t s_preset_recipe;
+static const muse_recipe_t *recipe_for(unsigned tool) {
+    if(tool < TOOL_RECIPE_FIRST) return NULL;
+    unsigned index=tool-TOOL_RECIPE_FIRST;
+    if(index < muse_recipe_count()) return muse_recipe_get(index);
+    index-=muse_recipe_count();
+    if(index >= (unsigned)s_preset_count) return NULL;
+    s_preset_recipe=(muse_recipe_t){.name=s_presets[index].title,.instructions=s_presets[index].detail,.seconds=s_presets[index].seconds};
+    return &s_preset_recipe;
+}
+
 
 static uint32_t now_ms(void) { return (uint32_t)(esp_timer_get_time() / 1000); }
 
@@ -53,7 +68,7 @@ static void refresh(void)
         snprintf(value, sizeof(value), "%s", muse_settings_speaker_on() ? "ON" : "OFF");
         action = "TOGGLE";
     } else {
-        const muse_recipe_t *recipe = s_tool >= TOOL_RECIPE_FIRST ? muse_recipe_get(s_tool - TOOL_RECIPE_FIRST) : NULL;
+        const muse_recipe_t *recipe = recipe_for(s_tool);
         title = recipe ? recipe->name : "FOCUS TIMER";
         detail = recipe ? recipe->instructions : "25 minutes, one task";
         bool mine = s_timer_tool == s_tool;
@@ -84,7 +99,7 @@ static void act(lv_event_t *e)
 void muse_tools_ui_next(void)
 {
     muse_state_poke();
-    s_tool = (s_tool + 1) % (TOOL_RECIPE_FIRST + muse_recipe_count());
+    s_tool = (s_tool + 1) % (TOOL_RECIPE_FIRST + muse_recipe_count() + s_preset_count);
     save_tool();
     refresh();
 }
@@ -111,7 +126,7 @@ void muse_tools_ui_act(void)
         } else if (s_timer_tool == s_tool && s_timer.remaining_ms && !s_timer.finished) {
             muse_timer_resume(&s_timer, now);
         } else {
-            const muse_recipe_t *recipe = s_tool >= TOOL_RECIPE_FIRST ? muse_recipe_get(s_tool - TOOL_RECIPE_FIRST) : NULL;
+            const muse_recipe_t *recipe = recipe_for(s_tool);
             s_timer_tool = s_tool;
             muse_timer_start(&s_timer, (recipe ? recipe->seconds : 25 * 60) * 1000, now);
         }
@@ -174,7 +189,7 @@ void muse_tools_ui_build(lv_obj_t *tile)
     if (nvs_open("muse_tools", NVS_READONLY, &handle) == ESP_OK) {
         nvs_get_u8(handle, "selected", &selected);
         nvs_close(handle);
-        if (selected < TOOL_RECIPE_FIRST + muse_recipe_count()) s_tool = selected;
+        if (selected < TOOL_RECIPE_FIRST + muse_recipe_count() + s_preset_count) s_tool = selected;
     }
 #endif
     refresh();
@@ -186,6 +201,9 @@ void muse_tools_ui_tick(void)
     if (muse_timer_update(&s_timer, now_ms())) {
         muse_tools_alarm_set(false, 0);
         s_completion_pending = true;
+#if !CONFIG_MUSE_BOARD_SIMULATOR
+        muse_pocket_send_event("timer.done", "Timer complete");
+#endif
     }
     /* Visual completion never interrupts recording/playback or pairing. */
     if (s_completion_pending && muse_state_mode(NULL) == MUSE_MODE_IDLE) {
@@ -199,3 +217,32 @@ void muse_tools_ui_tick(void)
 }
 
 const char *muse_tools_ui_value(void) { return s_value ? lv_label_get_text(s_value) : ""; }
+
+bool muse_tools_ui_set_presets(const pocket_preset_t *items,int count) {
+    if(count<0 || count>POCKET_ITEMS || s_timer.running || s_timer.remaining_ms) return false;
+    memcpy(s_presets,items,(size_t)count*sizeof(*items)); s_preset_count=count;
+    if(s_tool>=TOOL_RECIPE_FIRST+muse_recipe_count()+(unsigned)count) s_tool=TOOL_FOCUS;
+    if(s_value) refresh();
+    return true;
+}
+bool muse_tools_ui_timer_start(const pocket_preset_t *p) {
+    if(!p || s_timer.running || s_timer.remaining_ms) return false;
+    unsigned index=0;while(index<(unsigned)s_preset_count && strcmp(s_presets[index].id,p->id))index++;
+    if(index==(unsigned)s_preset_count)return false;
+    s_tool=s_timer_tool=TOOL_RECIPE_FIRST+muse_recipe_count()+index; uint32_t now=now_ms();
+    muse_timer_start(&s_timer,(uint32_t)p->seconds*1000,now); muse_tools_alarm_set(true,now+s_timer.remaining_ms);
+    s_completion_pending=false; muse_state_set_asleep(false); muse_state_poke(); muse_ui_request_page(1);
+    if(s_value) refresh();
+    return true;
+}
+void muse_tools_ui_timer_pause(void) {
+    /* Deliver completion before pause can consume the timer's deadline edge. */
+    muse_tools_ui_tick();
+    muse_timer_pause(&s_timer,now_ms());muse_tools_alarm_set(false,0);if(s_value)refresh();
+}
+void muse_tools_ui_timer_resume(void) {uint32_t now=now_ms();muse_timer_resume(&s_timer,now);muse_tools_alarm_set(s_timer.running,now+s_timer.remaining_ms);if(s_value)refresh();}
+void muse_tools_ui_timer_status(bool *running,unsigned *remaining,const char **title) {
+    muse_timer_t copy=s_timer; muse_timer_update(&copy,now_ms());
+    *running=copy.running;*remaining=(copy.remaining_ms+999)/1000;
+    const muse_recipe_t *p=recipe_for(s_timer_tool);*title=p?p->name:"Focus";
+}

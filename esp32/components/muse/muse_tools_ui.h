@@ -11,3 +11,10 @@ void muse_tools_ui_next(void);
 void muse_tools_ui_act(void);
 void muse_tools_ui_reset(void);
 const char *muse_tools_ui_value(void);
+
+#include "pocket_model.h"
+bool muse_tools_ui_set_presets(const pocket_preset_t *items,int count);
+bool muse_tools_ui_timer_start(const pocket_preset_t *preset);
+void muse_tools_ui_timer_pause(void);
+void muse_tools_ui_timer_resume(void);
+void muse_tools_ui_timer_status(bool *running,unsigned *remaining,const char **title);

@@ -46,6 +46,9 @@
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
 #include "muse_experience.h"
 #include "muse_standby.h"
+#if !CONFIG_MUSE_BOARD_SIMULATOR
+#include "muse_pocket.h"
+#endif
 #include "muse_local_tools.h"
 #include "esp_timer.h"
 #endif
@@ -521,7 +524,11 @@ static void input_task(void *arg)
         if (paused && muse_board->wait_buttons) {
             uint32_t wait_ms = napping ? NAP_WAIT_MS : REST_WAIT_MS;
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
-            if (muse_standby_enabled()) wait_ms = wait_ms > 100 ? 100 : wait_ms;
+            bool motion=false;
+#if !CONFIG_MUSE_BOARD_SIMULATOR
+            pocket_settings_t pocket;muse_pocket_settings(&pocket);motion=pocket.tilt;
+#endif
+            if (muse_standby_enabled() || motion) wait_ms = wait_ms > 100 ? 100 : wait_ms;
             wait_ms = muse_tools_alarm_wait_ms((uint32_t)(esp_timer_get_time() / 1000), wait_ms);
 #endif
             muse_board->wait_buttons(wait_ms);

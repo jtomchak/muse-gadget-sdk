@@ -31,6 +31,7 @@
 #include "muse_ui.h"
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
 #include "muse_standby.h"
+#include "muse_pocket.h"
 #endif
 #include "muse_voice.h"
 #include "muse_wifi.h"
@@ -98,6 +99,7 @@ void muse_app_run(const muse_board_t *board)
     muse_ble_apply();
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
     muse_standby_init();
+    ESP_ERROR_CHECK(muse_pocket_init());
 #endif
     ESP_LOGI(TAG, "ready: free heap %u internal, %u psram",
              (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),

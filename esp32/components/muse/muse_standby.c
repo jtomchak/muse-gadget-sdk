@@ -15,6 +15,8 @@ static atomic_bool s_enabled = true;
 static atomic_bool s_active;
 /* Experimental until sensitivity is measured on the assembled enclosure. */
 static atomic_bool s_tap;
+static atomic_bool s_24=true,s_night;
+static atomic_int s_night_start=1320,s_night_end=420;
 static atomic_int s_shortcut;
 static atomic_uint_least32_t s_rendered;
 static atomic_int s_rendered_minute = -1;
@@ -48,8 +50,14 @@ void muse_standby_init(void)
     if (err != ESP_OK) ESP_LOGW("standby", "clock sync unavailable: %s", esp_err_to_name(err));
 #endif
 }
-bool muse_standby_enabled(void) { return atomic_load(&s_enabled); }
-void muse_standby_toggle(void) { atomic_store(&s_enabled, !muse_standby_enabled()); save(); }
+bool muse_standby_clock_preference(void) {return atomic_load(&s_enabled);}
+bool muse_standby_enabled(void) {
+    time_t now=time(NULL);struct tm t;localtime_r(&now,&t);
+    int m=t.tm_hour*60+t.tm_min,a=atomic_load(&s_night_start),b=atomic_load(&s_night_end);
+    bool night=t.tm_year>=124 && atomic_load(&s_night) && a!=b && (a<b?m>=a&&m<b:m>=a||m<b);
+    return atomic_load(&s_enabled) && !night;
+}
+void muse_standby_toggle(void) { atomic_store(&s_enabled, !atomic_load(&s_enabled)); save(); }
 bool muse_standby_tap_enabled(void) { return atomic_load(&s_tap); }
 void muse_standby_toggle_tap(void) { atomic_store(&s_tap, !muse_standby_tap_enabled()); save(); }
 int muse_standby_shortcut(void) { return atomic_load(&s_shortcut); }
@@ -69,7 +77,7 @@ void muse_standby_clock(char out[6], int *minute)
 #endif
     *minute = t.tm_hour*60+t.tm_min;
     if (t.tm_year < 124) { snprintf(out, 6, "--:--"); return; }
-    strftime(out, 6, "%H:%M", &t);
+    strftime(out, 6, atomic_load(&s_24) ? "%H:%M" : "%I:%M", &t);
 }
 void muse_standby_rendered(uint32_t now_ms)
 {
@@ -87,3 +95,13 @@ bool muse_standby_can_pause(uint32_t now_ms)
         && now_ms - atomic_load(&s_rendered) >= 250;
 }
 void muse_standby_exit(void) { atomic_store(&s_active, false); }
+
+void muse_standby_configure(const pocket_settings_t *s) {
+    atomic_store(&s_enabled,s->clock);atomic_store(&s_tap,s->tap);atomic_store(&s_shortcut,s->shortcut);
+    atomic_store(&s_24,s->clock24);atomic_store(&s_night,s->night);
+    atomic_store(&s_night_start,s->nightStart);atomic_store(&s_night_end,s->nightEnd);
+#if !CONFIG_MUSE_BOARD_SIMULATOR
+    setenv("TZ",s->timezone,1);tzset();save();
+#endif
+    muse_standby_exit();
+}

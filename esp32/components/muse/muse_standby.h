@@ -15,3 +15,7 @@ void muse_standby_clock(char out[6], int *minute);
 bool muse_standby_can_pause(uint32_t now_ms);
 void muse_standby_rendered(uint32_t now_ms);
 void muse_standby_exit(void);
+
+#include "pocket_model.h"
+void muse_standby_configure(const pocket_settings_t *settings);
+bool muse_standby_clock_preference(void);

@@ -1,0 +1,589 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 54;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		08AB6D5DC6E0627B4FC45261 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 03A38515177745BA2B515DF9 /* Assets.xcassets */; };
+		27D4C766BC012B4A6852B10F /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78D64F4C708C1F76C09A80EA /* Keychain.swift */; };
+		3505B035BE66ECAF2E1497F6 /* MusePocketCore in Frameworks */ = {isa = PBXBuildFile; productRef = 42935D1B51879A75D936129B /* MusePocketCore */; };
+		521C42A4BB4A9AF210F89526 /* MusePocketApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71E4C2B6D45DA2D3FA752DF4 /* MusePocketApp.swift */; };
+		6BD3427B08AD58F8A99AC02C /* AssistantService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 835D887F4D0B7634E66E3ECA /* AssistantService.swift */; };
+		8271CEF8DD11ED6CE4BBF899 /* NativeServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5CEED544885C63E4159F557 /* NativeServices.swift */; };
+		839C7A449D8EF519002621ED /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4758155EDE622C0A0049DE7 /* Views.swift */; };
+		B5A84E7993FAD31A8BDE3E3A /* PocketStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC61AECA0980FC291797EDD3 /* PocketStoreTests.swift */; };
+		B61154542BF65C2D3A4C1E23 /* MusePocketUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52129ABEEFEEFB7BEB14EA9A /* MusePocketUITests.swift */; };
+		BD1153BEE178122BF5C4E2DA /* PocketStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83CFD0E95552914D442A4014 /* PocketStore.swift */; };
+		C975B02B72F2EF2FBE3FEC64 /* PocketHTTP.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E12A19D01773C73301F67E0 /* PocketHTTP.swift */; };
+		F2E3F840A2C3A99D12728A85 /* BluetoothTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4231F5020DCAA3C238474AE9 /* BluetoothTransport.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		01602953C92AECF29EDF6A37 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B2E15E2C13E59A14EC4E4C16 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 08F821C291286A48FA1C89FA;
+			remoteInfo = MusePocket;
+		};
+		938ABBA6BD5C500522DF21B5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B2E15E2C13E59A14EC4E4C16 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 08F821C291286A48FA1C89FA;
+			remoteInfo = MusePocket;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		03A38515177745BA2B515DF9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		0E12A19D01773C73301F67E0 /* PocketHTTP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PocketHTTP.swift; sourceTree = "<group>"; };
+		0E52B8C7C40CB253C8E55EB4 /* MusePocket.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = MusePocket.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4231F5020DCAA3C238474AE9 /* BluetoothTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothTransport.swift; sourceTree = "<group>"; };
+		4932B5E0AE09375B4D7AA84B /* MusePocketUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = MusePocketUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		52129ABEEFEEFB7BEB14EA9A /* MusePocketUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusePocketUITests.swift; sourceTree = "<group>"; };
+		71E4C2B6D45DA2D3FA752DF4 /* MusePocketApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusePocketApp.swift; sourceTree = "<group>"; };
+		78D64F4C708C1F76C09A80EA /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
+		835D887F4D0B7634E66E3ECA /* AssistantService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantService.swift; sourceTree = "<group>"; };
+		83CFD0E95552914D442A4014 /* PocketStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PocketStore.swift; sourceTree = "<group>"; };
+		B84E6FF8E9F7DD3EFABF8882 /* MusePocketTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = MusePocketTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BC61AECA0980FC291797EDD3 /* PocketStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PocketStoreTests.swift; sourceTree = "<group>"; };
+		D5CEED544885C63E4159F557 /* NativeServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeServices.swift; sourceTree = "<group>"; };
+		E4758155EDE622C0A0049DE7 /* Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
+		EA1AC14A93B758E0E593608C /* MusePocketCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MusePocketCore; path = MusePocketCore; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		59AEE6E891617113CFFF2F2A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3505B035BE66ECAF2E1497F6 /* MusePocketCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		27571F0065A3E72946E6C1B4 = {
+			isa = PBXGroup;
+			children = (
+				CB807549E82B8B4E8144009B /* MusePocketTests */,
+				F4DA9666DD2A090CAAE93DE2 /* MusePocketUITests */,
+				8A5C65CB512E6BE690E83987 /* Packages */,
+				D5FB0A73CA3964B92E6C012E /* Resources */,
+				E4BB5BF95242C98266CAF720 /* Sources */,
+				61A95F70439CCBFBB55780C0 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		61A95F70439CCBFBB55780C0 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				0E52B8C7C40CB253C8E55EB4 /* MusePocket.app */,
+				B84E6FF8E9F7DD3EFABF8882 /* MusePocketTests.xctest */,
+				4932B5E0AE09375B4D7AA84B /* MusePocketUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		8A5C65CB512E6BE690E83987 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				EA1AC14A93B758E0E593608C /* MusePocketCore */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		CB807549E82B8B4E8144009B /* MusePocketTests */ = {
+			isa = PBXGroup;
+			children = (
+				BC61AECA0980FC291797EDD3 /* PocketStoreTests.swift */,
+			);
+			path = MusePocketTests;
+			sourceTree = "<group>";
+		};
+		D5FB0A73CA3964B92E6C012E /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				03A38515177745BA2B515DF9 /* Assets.xcassets */,
+			);
+			name = Resources;
+			path = MusePocket/Resources;
+			sourceTree = "<group>";
+		};
+		E4BB5BF95242C98266CAF720 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				835D887F4D0B7634E66E3ECA /* AssistantService.swift */,
+				4231F5020DCAA3C238474AE9 /* BluetoothTransport.swift */,
+				78D64F4C708C1F76C09A80EA /* Keychain.swift */,
+				71E4C2B6D45DA2D3FA752DF4 /* MusePocketApp.swift */,
+				D5CEED544885C63E4159F557 /* NativeServices.swift */,
+				0E12A19D01773C73301F67E0 /* PocketHTTP.swift */,
+				83CFD0E95552914D442A4014 /* PocketStore.swift */,
+				E4758155EDE622C0A0049DE7 /* Views.swift */,
+			);
+			name = Sources;
+			path = MusePocket/Sources;
+			sourceTree = "<group>";
+		};
+		F4DA9666DD2A090CAAE93DE2 /* MusePocketUITests */ = {
+			isa = PBXGroup;
+			children = (
+				52129ABEEFEEFB7BEB14EA9A /* MusePocketUITests.swift */,
+			);
+			path = MusePocketUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		08F821C291286A48FA1C89FA /* MusePocket */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 20AC632E03B0850082D04D88 /* Build configuration list for PBXNativeTarget "MusePocket" */;
+			buildPhases = (
+				8D4D71161FF9472549A30192 /* Sources */,
+				5904A275510CFB721E0AB4AF /* Resources */,
+				59AEE6E891617113CFFF2F2A /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MusePocket;
+			packageProductDependencies = (
+				42935D1B51879A75D936129B /* MusePocketCore */,
+			);
+			productName = MusePocket;
+			productReference = 0E52B8C7C40CB253C8E55EB4 /* MusePocket.app */;
+			productType = "com.apple.product-type.application";
+		};
+		234C42C95E7D5CD0285AAC3B /* MusePocketTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 733BD34B495E3A378B7ED04E /* Build configuration list for PBXNativeTarget "MusePocketTests" */;
+			buildPhases = (
+				41924CAED57115941581ACF1 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				63C5F79B2D6CD11E345240BE /* PBXTargetDependency */,
+			);
+			name = MusePocketTests;
+			productName = MusePocketTests;
+			productReference = B84E6FF8E9F7DD3EFABF8882 /* MusePocketTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		D3E8E47CAA950994B796D959 /* MusePocketUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C6A4B0FA464474A8E1FEACBF /* Build configuration list for PBXNativeTarget "MusePocketUITests" */;
+			buildPhases = (
+				E2C714666A179555F7461C1F /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				07CAE7E8D0F356277F204587 /* PBXTargetDependency */,
+			);
+			name = MusePocketUITests;
+			productName = MusePocketUITests;
+			productReference = 4932B5E0AE09375B4D7AA84B /* MusePocketUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		B2E15E2C13E59A14EC4E4C16 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					08F821C291286A48FA1C89FA = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					234C42C95E7D5CD0285AAC3B = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					D3E8E47CAA950994B796D959 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+						TestTargetID = 08F821C291286A48FA1C89FA;
+					};
+				};
+			};
+			buildConfigurationList = 26E12CAE6F9EC238AACEDB2B /* Build configuration list for PBXProject "MusePocket" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 27571F0065A3E72946E6C1B4;
+			packageReferences = (
+				FB1A7F7794F1FA89627D6784 /* XCLocalSwiftPackageReference "MusePocketCore" */,
+			);
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				08F821C291286A48FA1C89FA /* MusePocket */,
+				234C42C95E7D5CD0285AAC3B /* MusePocketTests */,
+				D3E8E47CAA950994B796D959 /* MusePocketUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		5904A275510CFB721E0AB4AF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				08AB6D5DC6E0627B4FC45261 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		41924CAED57115941581ACF1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B5A84E7993FAD31A8BDE3E3A /* PocketStoreTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8D4D71161FF9472549A30192 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6BD3427B08AD58F8A99AC02C /* AssistantService.swift in Sources */,
+				F2E3F840A2C3A99D12728A85 /* BluetoothTransport.swift in Sources */,
+				27D4C766BC012B4A6852B10F /* Keychain.swift in Sources */,
+				521C42A4BB4A9AF210F89526 /* MusePocketApp.swift in Sources */,
+				8271CEF8DD11ED6CE4BBF899 /* NativeServices.swift in Sources */,
+				C975B02B72F2EF2FBE3FEC64 /* PocketHTTP.swift in Sources */,
+				BD1153BEE178122BF5C4E2DA /* PocketStore.swift in Sources */,
+				839C7A449D8EF519002621ED /* Views.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E2C714666A179555F7461C1F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B61154542BF65C2D3A4C1E23 /* MusePocketUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		07CAE7E8D0F356277F204587 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 08F821C291286A48FA1C89FA /* MusePocket */;
+			targetProxy = 01602953C92AECF29EDF6A37 /* PBXContainerItemProxy */;
+		};
+		63C5F79B2D6CD11E345240BE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 08F821C291286A48FA1C89FA /* MusePocket */;
+			targetProxy = 938ABBA6BD5C500522DF21B5 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1E37A1A8ADC47C974A93643D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = MusePocket/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jtomchak.musepocket;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		4F8FCF2C6600D9004789DFD1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jtomchak.MusePocketUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = MusePocket;
+			};
+			name = Debug;
+		};
+		5788893227B187333BBDC390 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = MusePocket/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jtomchak.musepocket;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		71FED86E33DFD9E3BE38F828 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jtomchak.MusePocketTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MusePocket.app/MusePocket";
+			};
+			name = Debug;
+		};
+		752BA2924B1C08698D3444E5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jtomchak.MusePocketTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MusePocket.app/MusePocket";
+			};
+			name = Release;
+		};
+		93C721B40AC0B95E014C70F6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		9D8AA62F53DB385B4BF5CBD3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		FF7FE62692871594B0DBD414 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jtomchak.MusePocketUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = MusePocket;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		20AC632E03B0850082D04D88 /* Build configuration list for PBXNativeTarget "MusePocket" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5788893227B187333BBDC390 /* Debug */,
+				1E37A1A8ADC47C974A93643D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		26E12CAE6F9EC238AACEDB2B /* Build configuration list for PBXProject "MusePocket" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9D8AA62F53DB385B4BF5CBD3 /* Debug */,
+				93C721B40AC0B95E014C70F6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		733BD34B495E3A378B7ED04E /* Build configuration list for PBXNativeTarget "MusePocketTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				71FED86E33DFD9E3BE38F828 /* Debug */,
+				752BA2924B1C08698D3444E5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C6A4B0FA464474A8E1FEACBF /* Build configuration list for PBXNativeTarget "MusePocketUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4F8FCF2C6600D9004789DFD1 /* Debug */,
+				FF7FE62692871594B0DBD414 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		FB1A7F7794F1FA89627D6784 /* XCLocalSwiftPackageReference "MusePocketCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = MusePocketCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		42935D1B51879A75D936129B /* MusePocketCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MusePocketCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = B2E15E2C13E59A14EC4E4C16 /* Project object */;
+}

@@ -93,6 +93,8 @@ menu "Muse"
     config MUSE_OPTIMIZED_EXPERIENCE
         bool "Responsive companion and offline tools"
         depends on MUSE_ENABLED && MUSE_BOARD_WAVESHARE_S3_175C
+        select BT_NIMBLE_ROLE_CENTRAL
+        select BT_NIMBLE_GATT_CLIENT
         default y
         help
             Adds immediate input feedback, a local tools page, adaptive

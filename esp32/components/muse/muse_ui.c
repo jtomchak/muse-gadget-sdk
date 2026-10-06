@@ -47,6 +47,9 @@
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
 #include "muse_experience.h"
 #include "muse_standby.h"
+#if !CONFIG_MUSE_BOARD_SIMULATOR
+#include "muse_pocket.h"
+#endif
 #include <stdatomic.h>
 #include "muse_tools_ui.h"
 #define MUSE_PAGE_COUNT 3
@@ -886,6 +889,9 @@ static void build_screen(void)
     s_muse_y = s_big_y;
     lv_obj_add_flag(s_canvas, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(s_canvas, on_canvas_clicked, LV_EVENT_CLICKED, NULL);
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE && !CONFIG_MUSE_BOARD_SIMULATOR
+    muse_pocket_avatar_build(s_canvas);
+#endif
     if (s_ring) {
         /* The canvas's black corners reach the bezel; keep the ring on top. */
         lv_obj_move_foreground(s_ring);
@@ -1311,6 +1317,10 @@ static void update_chrome(float now)
     const lv_font_t *name_font = s_small ? &lv_font_unscii_8 : &lv_font_unscii_16;
     int name_cw = lv_font_get_glyph_width(name_font, 'M', ' ');
     const char *shown = paired ? "" : b.name;
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE && !CONFIG_MUSE_BOARD_SIMULATOR
+    pocket_settings_t pocket_name;muse_pocket_settings(&pocket_name);
+    if(!b.passkey)shown=pocket_name.name;
+#endif
     if (name_cw > 0 && (int)strlen(shown) * name_cw > s_w) {
         const char *tail = strrchr(shown, '-');
         if (tail && tail[1]) {
@@ -1577,6 +1587,9 @@ static void frame_tick(lv_timer_t *timer)
     int requested = atomic_exchange(&s_requested_page, -1);
     if (requested >= 0) muse_ui_show_page((unsigned)requested);
     muse_tools_ui_tick();
+#if !CONFIG_MUSE_BOARD_SIMULATOR
+    muse_pocket_tick();
+#endif
     bool mode_changed = mode != s_last_mode;
 #endif
 
@@ -1624,8 +1637,14 @@ static void frame_tick(lv_timer_t *timer)
     if (mode_changed || now_us >= s_next_avatar_us) {
         s_next_avatar_us = now_us + (int64_t)avatar_ms * 1000;
 #endif
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE && !CONFIG_MUSE_BOARD_SIMULATOR
+        if(!muse_pocket_avatar_visible()) {
+#endif
         muse_pixel_render(&pose);
         invalidate_muse();
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE && !CONFIG_MUSE_BOARD_SIMULATOR
+        }
+#endif
 #if CONFIG_MUSE_BOARD_SIMULATOR
         s_avatar_frames++;
 #endif

@@ -1,0 +1,68 @@
+name: MusePocket
+options:
+  bundleIdPrefix: com.jtomchak
+  deploymentTarget:
+    iOS: "18.0"
+packages:
+  MusePocketCore:
+    path: MusePocketCore
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 0.1.0
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    GENERATE_INFOPLIST_FILE: NO
+targets:
+  MusePocket:
+    type: application
+    platform: iOS
+    sources: [MusePocket/Sources, MusePocket/Resources]
+    info:
+      path: MusePocket/Info.plist
+      properties:
+        CFBundleDisplayName: MusePocket
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIBackgroundModes: [bluetooth-central]
+        NSBluetoothAlwaysUsageDescription: Connect securely to Moe to manage settings, tools and voice notes.
+        NSAccessorySetupKitSupports: [Bluetooth]
+        NSAccessorySetupBluetoothServices: [7FDD3D1C-38EA-46CF-8B46-314ECF5F240C]
+        NSCalendarsFullAccessUsageDescription: Choose upcoming events to send to Moe as pocket cards.
+        NSRemindersFullAccessUsageDescription: Choose reminders to display on Moe.
+        NSSpeechRecognitionUsageDescription: Transcribe voice notes recorded by Moe when you enable phone assistance.
+        NSMicrophoneUsageDescription: Record a request from MusePocket when you choose to talk on the phone.
+        UIApplicationSupportsIndirectInputEvents: YES
+        ITSAppUsesNonExemptEncryption: NO
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jtomchak.musepocket
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+      - package: MusePocketCore
+  MusePocketTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [MusePocketTests]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies: [{target: MusePocket}]
+  MusePocketUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [MusePocketUITests]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies: [{target: MusePocket}]
+schemes:
+  MusePocket:
+    build:
+      targets:
+        MusePocket: all
+    test:
+      targets: [MusePocketTests, MusePocketUITests]

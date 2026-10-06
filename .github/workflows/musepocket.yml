@@ -1,0 +1,31 @@
+name: MusePocket iPhone
+on:
+  pull_request:
+    paths: ['ios/**', '.github/workflows/musepocket.yml']
+  push:
+    branches: [main]
+    paths: ['ios/**', '.github/workflows/musepocket.yml']
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  iphone:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Test portable protocol and audio
+        run: swift test --package-path ios/MusePocketCore
+      - name: Generate native project
+        run: |
+          brew install xcodegen
+          xcodegen generate --spec ios/project.yml
+      - name: Test native services and UI on an available iPhone
+        run: |
+          SIMULATOR_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for k,v in d.items() if "iOS" in k for x in v if "iPhone" in x["name"]))')
+          xcodebuild -project ios/MusePocket.xcodeproj -scheme MusePocket \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -derivedDataPath build/MusePocket CODE_SIGNING_ALLOWED=NO test

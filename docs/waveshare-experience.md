@@ -163,3 +163,10 @@ Existing Muse BSP and power-rail choices were preserved.
 Tap reference: vendor schematic and SensorLib QMI8658A datasheet Rev A,
 sections 5.3 and 10, with the vendor tap-example thresholds. Physical tap wake
 and battery runtime have not been verified: no board was connected during this build.
+
+## MusePocket companion
+
+The native SwiftUI iPhone app manages these device preferences over authenticated
+Bluetooth. See [MusePocket setup and features](../ios/README.md) and the
+[versioned protocol](musepocket-protocol.md). The companion remains in this fork;
+upstream SDK fixes can be merged using the workflow above.

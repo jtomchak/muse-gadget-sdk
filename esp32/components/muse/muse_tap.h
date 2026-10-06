@@ -9,3 +9,5 @@ typedef struct {
 } muse_tap_bus_t;
 /* QMI8658A tap engine, accelerometer only. Bounded CTRL9 handshake. */
 bool muse_tap_configure(const muse_tap_bus_t *bus);
+
+bool muse_tap_configure_threshold(const muse_tap_bus_t *bus,unsigned threshold);
