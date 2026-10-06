@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		08AB6D5DC6E0627B4FC45261 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 03A38515177745BA2B515DF9 /* Assets.xcassets */; };
+		15AB670625CA1741CF4F9769 /* MuseAssistantTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 409D6063EBD8574E6558E390 /* MuseAssistantTests.swift */; };
 		27D4C766BC012B4A6852B10F /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78D64F4C708C1F76C09A80EA /* Keychain.swift */; };
 		3505B035BE66ECAF2E1497F6 /* MusePocketCore in Frameworks */ = {isa = PBXBuildFile; productRef = 42935D1B51879A75D936129B /* MusePocketCore */; };
 		401BA70B26209446637E8C68 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B10F311DE07E65DF40B70E8D /* PrivacyInfo.xcprivacy */; };
@@ -43,6 +44,7 @@
 		03A38515177745BA2B515DF9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		0E12A19D01773C73301F67E0 /* PocketHTTP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PocketHTTP.swift; sourceTree = "<group>"; };
 		0E52B8C7C40CB253C8E55EB4 /* MusePocket.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = MusePocket.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		409D6063EBD8574E6558E390 /* MuseAssistantTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuseAssistantTests.swift; sourceTree = "<group>"; };
 		4231F5020DCAA3C238474AE9 /* BluetoothTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothTransport.swift; sourceTree = "<group>"; };
 		4932B5E0AE09375B4D7AA84B /* MusePocketUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = MusePocketUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		52129ABEEFEEFB7BEB14EA9A /* MusePocketUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusePocketUITests.swift; sourceTree = "<group>"; };
@@ -103,6 +105,7 @@
 		CB807549E82B8B4E8144009B /* MusePocketTests */ = {
 			isa = PBXGroup;
 			children = (
+				409D6063EBD8574E6558E390 /* MuseAssistantTests.swift */,
 				BC61AECA0980FC291797EDD3 /* PocketStoreTests.swift */,
 			);
 			path = MusePocketTests;
@@ -260,6 +263,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				15AB670625CA1741CF4F9769 /* MuseAssistantTests.swift in Sources */,
 				B5A84E7993FAD31A8BDE3E3A /* PocketStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

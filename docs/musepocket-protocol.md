@@ -110,6 +110,15 @@ was authorized for and cannot transfer to a subsequently connected phone. BLE
 transmission happens after capture on the worker; playback happens on the existing
 voice task and can be interrupted by a microphone press.
 
+MusePocket's **Muse** engine forwards the assembled recording as the upstream
+`audio/wav` voice-note attachment over authenticated HTTP-over-Noise. It uses the
+same C++ client transport as the board, with Apple CryptoKit as the crypto backend.
+`/chat/subscribe` is established before `/chat/stream` upload. A turn is correlated
+to its acknowledged user message; only its reply descendants are spoken. The
+phone's own cellular/Wi-Fi connection supplies internet while Moe has no Wi-Fi.
+A completed reply survives phone-app restart in the saved-note inbox so delivery
+can retry without sending the voice request twice. See [setup and limits](../ios/README.md#muse-voice-through-iphone).
+
 Other events include `timer.done`, `reply.played`, `reply.interrupted`,
 `ota.applied`, `ota.skipped`, `ota.failed`, with `{detail}` in `data`.
 `ota.applied` precedes reboot; the reconnected firmware version provides the useful

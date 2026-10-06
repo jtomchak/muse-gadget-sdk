@@ -3,6 +3,10 @@ import Foundation
 import Security
 
 enum PocketKeychain {
+  static func museAccount(_ host: String) -> String {
+    "muse.voice."
+      + SHA256.hash(data: Data(host.lowercased().utf8)).map { String(format: "%02x", $0) }.joined()
+  }
   static func relayAccount(_ url: URL) -> String {
     "relay."
       + SHA256.hash(data: Data(url.absoluteString.utf8)).map { String(format: "%02x", $0) }.joined()

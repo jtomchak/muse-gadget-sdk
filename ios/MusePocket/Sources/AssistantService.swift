@@ -11,9 +11,13 @@ import UIKit
 
 struct VoiceNote: Codable, Identifiable {
   var id: UUID, date: Date, filename: String, transcript: String?
+  var reply: String? = nil
 }
 @MainActor @Observable final class AssistantService {
-  var engine = "iphone"
+  var engine = "muse"
+  var museHost = "hatch.metaaivm.com"
+  var museVM = ""
+  var museDirectVMToken = false
   var endpoint = ""
   var status = "Ready when you are"
   var busy = false
@@ -31,28 +35,48 @@ struct VoiceNote: Codable, Identifiable {
   @ObservationIgnored private var sampleRate: Double = 22050
   @ObservationIgnored private var audioContinuation: CheckedContinuation<[Int16], Error>?
   @ObservationIgnored private var audioDeadline: Task<Void, Never>?
+  @ObservationIgnored private let preferences: UserDefaults
+  @ObservationIgnored private let inboxDirectory: URL?
+  @ObservationIgnored private let museClient: MuseVoiceClient?
+  @ObservationIgnored private let museCredential: ((String) -> String?)?
+  @ObservationIgnored private var activeMuseTask: Task<String, Error>?
   @ObservationIgnored var deliver: ((String, [Int16]?) async throws -> Void)?
-  init() {
-    engine = UserDefaults.standard.string(forKey: "assistant.engine") ?? "iphone"
-    endpoint = UserDefaults.standard.string(forKey: "assistant.endpoint") ?? ""
-    voiceIdentifier = UserDefaults.standard.string(forKey: "assistant.voice") ?? ""
-    voiceRate = UserDefaults.standard.object(forKey: "assistant.voiceRate") as? Double ?? 0.5
-    speakOnPhone = UserDefaults.standard.bool(forKey: "assistant.speakOnPhone")
-    if let data = UserDefaults.standard.data(forKey: "voice.inbox"),
+  init(
+    preferences: UserDefaults = .standard, inboxDirectory: URL? = nil,
+    museClient: MuseVoiceClient? = nil, museCredential: ((String) -> String?)? = nil
+  ) {
+    self.preferences = preferences
+    self.inboxDirectory = inboxDirectory
+    self.museClient = museClient
+    self.museCredential = museCredential
+    engine = preferences.string(forKey: "assistant.engine") ?? "muse"
+    museHost = preferences.string(forKey: "assistant.muse.host") ?? "hatch.metaaivm.com"
+    museVM = preferences.string(forKey: "assistant.muse.vm") ?? ""
+    museDirectVMToken = preferences.bool(forKey: "assistant.muse.direct")
+    endpoint = preferences.string(forKey: "assistant.endpoint") ?? ""
+    voiceIdentifier = preferences.string(forKey: "assistant.voice") ?? ""
+    voiceRate = preferences.object(forKey: "assistant.voiceRate") as? Double ?? 0.5
+    speakOnPhone = preferences.bool(forKey: "assistant.speakOnPhone")
+    if let data = preferences.data(forKey: "voice.inbox"),
       let notes = try? JSONDecoder().decode([VoiceNote].self, from: data)
     {
       inbox = notes
     }
   }
   func savePreferences() {
-    UserDefaults.standard.set(voiceRate, forKey: "assistant.voiceRate")
-    UserDefaults.standard.set(speakOnPhone, forKey: "assistant.speakOnPhone")
-    UserDefaults.standard.set(engine, forKey: "assistant.engine")
-    UserDefaults.standard.set(endpoint, forKey: "assistant.endpoint")
-    UserDefaults.standard.set(voiceIdentifier, forKey: "assistant.voice")
+    preferences.set(museHost, forKey: "assistant.muse.host")
+    preferences.set(museVM, forKey: "assistant.muse.vm")
+    preferences.set(museDirectVMToken, forKey: "assistant.muse.direct")
+    preferences.set(voiceRate, forKey: "assistant.voiceRate")
+    preferences.set(speakOnPhone, forKey: "assistant.speakOnPhone")
+    preferences.set(engine, forKey: "assistant.engine")
+    preferences.set(endpoint, forKey: "assistant.endpoint")
+    preferences.set(voiceIdentifier, forKey: "assistant.voice")
   }
   private var directory: URL {
-    let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    let root =
+      inboxDirectory
+      ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
       .appendingPathComponent("VoiceInbox", isDirectory: true)
     try? FileManager.default.createDirectory(
       at: root, withIntermediateDirectories: true,
@@ -61,7 +85,7 @@ struct VoiceNote: Codable, Identifiable {
   }
   private func saveInbox() {
     if let data = try? JSONEncoder().encode(inbox) {
-      UserDefaults.standard.set(data, forKey: "voice.inbox")
+      preferences.set(data, forKey: "voice.inbox")
     }
   }
   func receive(_ samples: [Int16]) async {
@@ -92,13 +116,19 @@ struct VoiceNote: Codable, Identifiable {
     saveInbox()
   }
   func process(_ note: VoiceNote) async {
-    guard !busy else { return }
+    guard !busy, inbox.contains(where: { $0.id == note.id }) else { return }
     busy = true
     defer { busy = false }
     do {
       let url = directory.appendingPathComponent(note.filename)
       let reply: String
-      if engine == "https" {
+      if let savedReply = inbox.first(where: { $0.id == note.id })?.reply {
+        status = "Delivering the saved reply to Moe…"
+        reply = savedReply
+      } else if engine == "muse" {
+        status = "Sending your voice note to Muse through iPhone…"
+        reply = try await muse(text: nil, audio: Data(contentsOf: url))
+      } else if engine == "https" {
         status = "Sending the note to your configured relay…"
         reply = try await remote(text: nil, audio: Data(contentsOf: url))
       } else {
@@ -110,6 +140,10 @@ struct VoiceNote: Codable, Identifiable {
         }
         reply = try await local(text)
       }
+      if let i = inbox.firstIndex(where: { $0.id == note.id }) {
+        inbox[i].reply = reply
+        saveInbox()
+      }
       try await finish(reply)
       delete(note)
     } catch { status = error.localizedDescription + " The note remains in your inbox." }
@@ -120,7 +154,14 @@ struct VoiceNote: Codable, Identifiable {
     defer { busy = false }
     do {
       status = "Thinking…"
-      let reply = try await (engine == "https" ? remote(text: text, audio: nil) : local(text))
+      let reply: String
+      if engine == "muse" {
+        reply = try await muse(text: text, audio: nil)
+      } else if engine == "https" {
+        reply = try await remote(text: text, audio: nil)
+      } else {
+        reply = try await local(text)
+      }
       try await finish(reply)
     } catch { status = error.localizedDescription }
   }
@@ -143,6 +184,52 @@ struct VoiceNote: Codable, Identifiable {
       "On-device replies require iOS 26 and an Apple Intelligence-capable iPhone. Choose HTTPS relay on other devices."
     )
   }
+  func saveMuseToken(_ token: String) throws {
+    let host = museHost.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+    if !token.isEmpty {
+      _ = try MuseConnection(host: host, vm: museVM, token: token, directVMToken: museDirectVMToken)
+      try PocketKeychain.save(token, name: PocketKeychain.museAccount(host))
+    } else if PocketKeychain.read(PocketKeychain.museAccount(host)) == nil {
+      throw PocketError.rejected(
+        "Enter a Muse account/device token. The gadget SDK token is only for gadget registration.")
+    }
+    museHost = host
+    savePreferences()
+  }
+  func clearMuseToken() {
+    PocketKeychain.delete(PocketKeychain.museAccount(museHost))
+    status = "Muse voice credentials removed from iPhone"
+  }
+  private func muse(text: String?, audio: Data?) async throws -> String {
+    let credential =
+      museCredential?(museHost) ?? PocketKeychain.read(PocketKeychain.museAccount(museHost))
+    guard let token = credential else {
+      throw PocketError.rejected(
+        "Configure Muse voice credentials in Assistant first. A gadget SDK token cannot authorize voice requests."
+      )
+    }
+    let connection = try MuseConnection(
+      host: museHost, vm: museVM, token: token, directVMToken: museDirectVMToken)
+    let client =
+      museClient
+      ?? MuseVoiceClient(fetch: { token in
+        var request = URLRequest(url: URL(string: "https://api.muse.ai/fetch_vms")!)
+        request.timeoutInterval = 20
+        request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
+        request.setValue("1.0.0", forHTTPHeaderField: "X-API-Version")
+        let (data, _) = try await PocketHTTP.data(for: request, limit: 32768)
+        return data
+      })
+    let task = Task { try await client.reply(connection: connection, text: text, wav: audio) }
+    activeMuseTask = task
+    defer { activeMuseTask = nil }
+    return try await withTaskCancellationHandler {
+      try await task.value
+    } onCancel: {
+      task.cancel()
+    }
+  }
+  func cancelMuseRequest() { activeMuseTask?.cancel() }
   private func remote(text: String?, audio: Data?) async throws -> String {
     guard let url = URL(string: endpoint) else {
       throw PocketError.rejected("Configure your HTTPS relay URL first.")

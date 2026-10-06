@@ -72,14 +72,15 @@ connection or transfer fails.
   without bounds. Turning it off stops display of notification content.
 - Phone-assisted voice: hold Moe's microphone button with relay enabled to send
   up to 15 seconds of IMA ADPCM. iPhone saves the WAV in a protected, five-note inbox,
-  transcribes locally, and generates an Apple on-device reply, or calls your HTTPS
-  relay. Text plus compressed speech return to Moe; button input interrupts playback.
+  connects directly to Muse for transcription and replies, generates an Apple
+  on-device reply with local transcription, or calls your HTTPS relay. Text plus compressed speech return to Moe; button input interrupts playback.
 
 ## Native platform limits
 
 Apple's on-device reply model needs an Apple Intelligence-capable iPhone, iOS 26+
 with the model available, and on-device Speech recognition for voice input. The
 app reports availability errors and retains a voice note if processing fails.
+Muse mode uses iPhone cellular data or Wi-Fi and does not require Apple Intelligence.
 HTTPS mode needs your own functioning endpoint; MusePocket does not deploy one or
 invent replies when a provider is unavailable.
 
@@ -100,6 +101,57 @@ Initial validation used simulators and unsigned device builds. A later developme
 build was installed and launched on an iPhone 12 with iOS 26.1; six native unit
 tests passed there. Physical UI automation could not initialize. BLE, audio and
 other hardware acceptance checks remain pending.
+
+## Muse voice through iPhone
+
+In Settings, enable **Route Moe’s voice through iPhone**. In Assistant, select
+**Muse**, set the host (default `hatch.metaaivm.com`) and save the account/device
+token used by the SDK's `hatch.token` setup. This is not the registration SDK token
+from gadgets.muse.ai. An account/device token discovers your VM with
+`https://api.muse.ai/fetch_vms`; an optional VM ID selects a specific Muse instead
+of the default. For a VM-specific auth token, enable **Use a direct VM token** and
+enter its VM ID; discovery is skipped. There is no silent auth fallback or login
+screen that extracts credentials from the official Muse app.
+
+Keep MusePocket open, connect Moe securely over BLE, disable Moe's Wi-Fi for the
+acceptance test, and hold its microphone button. After release, the phone receives
+up to 15 seconds of ADPCM, saves a protected WAV and connects over its own internet
+connection to `/v1/noise?vm_id=...`. The bearer credential stays in the header, not
+the URL. Apple CryptoKit supplies X25519, SHA256, HKDF and AES-GCM to the same C++
+`ClientSession` compiled by firmware. No separate relay server is required.
+
+The phone establishes `/chat/subscribe`, then sends the SDK voice-note attachment
+contract to `/chat/stream` as bounded chunks. Muse performs transcription and
+reply generation. The phone matches streamed replies to the acknowledged request,
+ignores unrelated messages, and speaks the resulting text with native TTS before
+returning text and 16 kHz ADPCM over BLE. Queue acceptance does not prove speaker
+playback completed; use Moe's `reply.played` event for that distinction.
+
+Phone credentials are stored in host-scoped Keychain entries; changing hosts does
+not reuse another host's token. Account discovery and WebSockets refuse redirects,
+use normal TLS certificate validation and do not log tokens or audio. A 90-second
+turn deadline, cancellation, bounded replies and a three-second settling interval
+prevent indefinite waits. Failed notes stay in the inbox. Completed replies are
+saved before playback, so **Deliver saved reply** can retry after a disconnect
+without another request to Muse, including after app restart. A connection lost
+before a completed reply may already have submitted the note: a manual retry can
+create another Muse request. Requests are not automatically retried.
+
+Run independent SDK interoperability checks on a Mac with Python `cryptography`:
+
+```sh
+MUSE_TEST_PYTHON=/path/to/python bash ios/tools/test-muse-relay.sh
+MUSE_TEST_PYTHON=/path/to/python bash ios/tools/test-muse-relay.sh \
+  xcodebuild -project ios/MusePocket.xcodeproj -scheme MusePocket \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.1' \
+  -derivedDataPath build/MusePocketVoice CODE_SIGNING_ALLOWED=NO test
+```
+
+The loopback responder uses the independent Python SDK and fake credentials. It
+verifies real WebSocket/Noise interoperability and the app's speech/delivery
+pipeline; it does not perform live Muse transcription or model inference. Live
+acceptance still needs a paired Waveshare, configured credentials and an iPhone
+with internet. Test both phone cellular and phone Wi-Fi with board Wi-Fi off.
 
 ## HTTPS relay contract
 

@@ -424,36 +424,15 @@ struct AssistantView: View {
     List {
       Section("Phone-assisted Moe") {
         Picker("Reply engine", selection: $assistant.engine) {
+          Text("Muse").tag("muse")
           Text("On iPhone").tag("iphone")
           Text("HTTPS relay").tag("https")
         }
-        if assistant.engine == "https" {
-          TextField("https://your-relay.example/relay", text: $assistant.endpoint)
-            .textInputAutocapitalization(.never).autocorrectionDisabled()
-          SecureField("Relay access token", text: $token)
-          Button("Save relay settings") {
-            Task {
-              await store.run("Relay settings saved securely") {
-                if let url = URL(string: assistant.endpoint) {
-                  try EndpointPolicy.validate(url)
-                } else {
-                  throw PocketError.malformed
-                }
-                guard let url = URL(string: assistant.endpoint) else { throw PocketError.malformed }
-                try PocketKeychain.save(token, name: PocketKeychain.relayAccount(url))
-                assistant.savePreferences()
-                token = ""
-              }
-            }
+        AssistantConnectionForm(store: store, token: $token)
+          .onChange(of: assistant.engine) { _, _ in
+            token = ""
+            assistant.savePreferences()
           }
-          Text(
-            "In relay mode, requests and voice recordings are sent to this endpoint. Saving replaces this endpoint’s token; leave empty for no bearer token. Tokens stay in the iPhone Keychain."
-          ).font(.footnote).foregroundStyle(.secondary)
-        } else {
-          Text(
-            "Uses Apple’s on-device model on supported iPhones with iOS 26 or later. Voice notes also need on-device speech recognition."
-          ).font(.footnote).foregroundStyle(.secondary)
-        }
         TextField("Ask Moe something…", text: $prompt, axis: .vertical).lineLimit(2...6)
           .accessibilityIdentifier("assistant.prompt")
         Button("Send request", systemImage: "arrow.up.circle.fill") {
@@ -467,6 +446,9 @@ struct AssistantView: View {
             }
           }
         }.disabled(!store.ready || assistant.busy || store.busy || prompt.isEmpty)
+        if assistant.engine == "muse" && assistant.busy {
+          Button("Cancel Muse request", role: .cancel) { assistant.cancelMuseRequest() }
+        }
         Text(assistant.status).font(.caption).foregroundStyle(.secondary)
         if !assistant.lastReply.isEmpty { Text(assistant.lastReply).textSelection(.enabled) }
       }
@@ -480,11 +462,15 @@ struct AssistantView: View {
           VStack(alignment: .leading) {
             Text(note.date.formatted()).font(.caption)
             if let transcript = note.transcript { Text(transcript) }
+            if let reply = note.reply { Text(reply).font(.caption) }
             HStack {
-              Button("Process") { Task { await assistant.process(note) } }.disabled(
+              Button(note.reply == nil ? "Process" : "Deliver saved reply") {
+                Task { await assistant.process(note) }
+              }.disabled(
                 !store.ready || assistant.busy || store.busy)
               Spacer()
-              Button("Delete", role: .destructive) { assistant.delete(note) }
+              Button("Delete", role: .destructive) { assistant.delete(note) }.disabled(
+                assistant.busy)
             }
           }
         }
@@ -704,5 +690,63 @@ struct PocketSettingsView: View {
   }
   private func clockMinute(_ minute: Int) -> String {
     String(format: "%02d:%02d", minute / 60, minute % 60)
+  }
+}
+
+private struct AssistantConnectionForm: View {
+  let store: PocketStore
+  @Binding var token: String
+  var body: some View {
+    @Bindable var assistant = store.assistant
+    Group {
+      if assistant.engine == "muse" {
+        TextField("Muse host", text: $assistant.museHost)
+          .textInputAutocapitalization(.never).autocorrectionDisabled()
+        TextField("VM ID (optional for account token)", text: $assistant.museVM)
+          .textInputAutocapitalization(.never).autocorrectionDisabled()
+        Toggle("Use a direct VM token", isOn: $assistant.museDirectVMToken)
+        SecureField("Muse account/device token", text: $token)
+          .accessibilityIdentifier("assistant.museToken")
+        Button("Save Muse connection") {
+          Task {
+            await store.run("Muse voice credentials saved on iPhone") {
+              try assistant.saveMuseToken(token)
+              token = ""
+            }
+          }
+        }
+        Button("Remove saved Muse token", role: .destructive) { assistant.clearMuseToken() }
+        Text(
+          "Moe sends voice over Bluetooth; this iPhone connects directly to your Muse using cellular data or Wi-Fi. Muse transcribes and replies; iPhone speaks the reply back to Moe. Use credentials from Muse SDK setup, not the gadget registration SDK token. Keep MusePocket open while testing."
+        )
+        .font(.footnote).foregroundStyle(.secondary)
+      } else if assistant.engine == "https" {
+        TextField("https://your-relay.example/relay", text: $assistant.endpoint)
+          .textInputAutocapitalization(.never).autocorrectionDisabled()
+        SecureField("Relay access token", text: $token)
+        Button("Save relay settings") {
+          Task {
+            await store.run("Relay settings saved securely") {
+              if let url = URL(string: assistant.endpoint) {
+                try EndpointPolicy.validate(url)
+              } else {
+                throw PocketError.malformed
+              }
+              guard let url = URL(string: assistant.endpoint) else { throw PocketError.malformed }
+              try PocketKeychain.save(token, name: PocketKeychain.relayAccount(url))
+              assistant.savePreferences()
+              token = ""
+            }
+          }
+        }
+        Text(
+          "In relay mode, requests and voice recordings are sent to this endpoint. Saving replaces this endpoint’s token; leave empty for no bearer token. Tokens stay in the iPhone Keychain."
+        ).font(.footnote).foregroundStyle(.secondary)
+      } else {
+        Text(
+          "Uses Apple’s on-device model on supported iPhones with iOS 26 or later. Voice notes also need on-device speech recognition."
+        ).font(.footnote).foregroundStyle(.secondary)
+      }
+    }
   }
 }

@@ -78,3 +78,39 @@ After these fixes, all 227 host tests passed without skips, the Waveshare
 firmware rebuilt successfully, and the ASan/UBSan simulator passed. GitHub
 MusePocket iPhone CI passed for commit `4ca6739`; the corrected Linux jobs
 require a fresh run.
+
+## Muse phone relay verification
+
+The Muse engine now compiles the upstream C++ Noise transport into MusePocket with
+an Apple CryptoKit backend. Voice notes and typed requests use the SDK's VM
+credential discovery, `/v1/noise`, `/chat/subscribe` and `/chat/stream` contracts.
+No hosted relay service is required. The independent fixture uses the Python SDK
+as its responder, fake account/VM tokens, and loopback WebSockets; it does not
+contact a live Muse account or generate an AI answer.
+
+| Check | Result | Scope |
+| --- | --- | --- |
+| Swift package + independent SDK fixture | 22 tests passed, including 12 WebSocket scenarios | Voice/text request contracts, 15-second recording, VM-token discovery bypass, early replies, unrelated/replayed message isolation, auth rejection, redirect refusal, ciphertext tampering, resets, disconnects, cancellation and deadline |
+| Native XCTest | 8 passed on iPhone 17 Pro simulator, iOS 26.1 | Includes decoded BLE note → real loopback Noise connection → native TTS → reply delivery; forced delivery failure persists a completed reply across service restart and retries without a second Muse request |
+| Native UI | 1 passed | Existing preview navigation, cards, presets and Assistant screen |
+| Shared firmware Noise core host test | 1 passed | Existing C++ core compiles and links with PSA crypto |
+| Waveshare firmware | Build succeeded | Apple bridge is outside ESP-IDF's explicit source list; existing board integration remains intact |
+| Physical iPhone | Development build 0.1.0 (2) installed and launched | Muse Assistant settings available on Jesse's iPhone 12; no cloud response or physical BLE/speaker result implied |
+
+Reproduce the independent fixture and native suite using
+[`ios/tools/test-muse-relay.sh`](../ios/tools/test-muse-relay.sh); examples are in
+[`ios/README.md`](../ios/README.md#muse-voice-through-iphone). CI now includes both
+fixture runs and triggers on shared C++ transport or Python Noise changes.
+
+**Live acceptance remains pending:** no Waveshare USB serial device was connected
+and no live Muse credentials were configured for this run. Real cloud
+transcription/model inference, iPhone cellular routing, physical BLE throughput,
+and Moe speaker completion have not been verified. For acceptance, turn board
+Wi-Fi off, keep phone internet and Bluetooth on, configure Muse credentials in
+Assistant, enable the phone relay, record a distinct phrase, and verify both the
+correct Muse reply and `reply.played`. Repeat over phone Wi-Fi, then with phone
+internet off (saved-note retention), and after a disconnect/reconnect (cached
+reply delivery). Do not label the fixture response as a live Muse result.
+
+This work did not export or upload to TestFlight; the user's exact release
+provider verification requirement remains in force.
