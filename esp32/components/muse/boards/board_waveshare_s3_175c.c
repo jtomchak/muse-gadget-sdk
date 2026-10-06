@@ -327,6 +327,8 @@ static void wait_buttons(int timeout_ms)
 {
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
     atomic_store(&s_tap_waiter, xTaskGetCurrentTaskHandle());
+    /* A pulse before we began waiting is retained even after INT1 falls. */
+    if (!atomic_load(&s_tapped))
 #endif
     muse_gpio_buttons_wait((muse_gpio_button_t *const[]){ &s_pwr, &s_boot }, 2, timeout_ms);
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
