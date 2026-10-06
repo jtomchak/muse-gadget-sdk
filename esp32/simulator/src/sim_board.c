@@ -79,7 +79,11 @@ static esp_err_t sim_power_off(void)
 }
 
 static const muse_board_t s_sim_board = {
+#if MUSE_SIM_WAVESHARE_175C
+    .name = "Waveshare 1.75C Simulator",
+#else
     .name = "SenseCAP Watcher Simulator",
+#endif
     .width = WATCHER_RESOLUTION,
     .height = WATCHER_RESOLUTION,
     .round = true,

@@ -478,7 +478,11 @@ static void input_task(void *arg)
          * noticed within REST_WAIT_MS. Napping, nothing comes over the
          * network; USB power arriving is noticed within NAP_WAIT_MS. */
         if (paused && muse_board->wait_buttons) {
-            muse_board->wait_buttons(napping ? NAP_WAIT_MS : REST_WAIT_MS);
+            uint32_t wait_ms = napping ? NAP_WAIT_MS : REST_WAIT_MS;
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+            wait_ms = muse_tools_alarm_wait_ms((uint32_t)(esp_timer_get_time() / 1000), wait_ms);
+#endif
+            muse_board->wait_buttons(wait_ms);
         } else {
             vTaskDelay(pdMS_TO_TICKS(paused ? REST_POLL_MS : POLL_MS));
         }

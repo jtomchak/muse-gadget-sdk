@@ -38,6 +38,8 @@ class LocalToolsTest(unittest.TestCase):
         cls.lib.muse_tools_alarm_set.argtypes = [c.c_bool, c.c_uint32]
         cls.lib.muse_tools_alarm_take.argtypes = [c.c_uint32]
         cls.lib.muse_tools_alarm_take.restype = c.c_bool
+        cls.lib.muse_tools_alarm_wait_ms.argtypes = [c.c_uint32, c.c_uint32]
+        cls.lib.muse_tools_alarm_wait_ms.restype = c.c_uint32
         cls.lib.muse_recipe_count.restype = c.c_size_t
         cls.lib.muse_recipe_get.argtypes = [c.c_size_t]
         cls.lib.muse_recipe_get.restype = c.POINTER(Recipe)
@@ -98,6 +100,14 @@ class LocalToolsTest(unittest.TestCase):
         self.lib.muse_tools_alarm_set(True, 0)
         self.assertFalse(self.lib.muse_tools_alarm_take(0))
         self.assertTrue(self.lib.muse_tools_alarm_take(1))
+
+    def test_sleep_wait_is_capped_to_timer_deadline(self):
+        self.lib.muse_tools_alarm_set(True, 2000)
+        self.assertEqual(self.lib.muse_tools_alarm_wait_ms(1500, 10000), 500)
+        self.assertEqual(self.lib.muse_tools_alarm_wait_ms(1500, 100), 100)
+        self.assertEqual(self.lib.muse_tools_alarm_wait_ms(2000, 10000), 1)
+        self.lib.muse_tools_alarm_set(False, 0)
+        self.assertEqual(self.lib.muse_tools_alarm_wait_ms(2000, 10000), 10000)
 
     def test_recipes_are_available_without_network_or_heap(self):
         self.assertEqual(self.lib.muse_recipe_count(), 2)

@@ -64,3 +64,12 @@ bool muse_tools_alarm_take(uint32_t now_ms)
     /* A UI rearm between reading and taking must not be cleared. */
     return atomic_compare_exchange_strong(&s_deadline, &deadline, 0);
 }
+
+uint32_t muse_tools_alarm_wait_ms(uint32_t now_ms, uint32_t max_wait_ms)
+{
+    uint32_t deadline = atomic_load(&s_deadline);
+    if (!deadline) return max_wait_ms;
+    int32_t left = (int32_t)(deadline - now_ms);
+    if (left <= 0) return 1;
+    return (uint32_t)left < max_wait_ms ? (uint32_t)left : max_wait_ms;
+}

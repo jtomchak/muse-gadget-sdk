@@ -28,3 +28,4 @@ const muse_recipe_t *muse_recipe_get(size_t index);
  * the display. No network, heap allocation, or rendering on the input task. */
 void muse_tools_alarm_set(bool armed, uint32_t deadline_ms);
 bool muse_tools_alarm_take(uint32_t now_ms);
+uint32_t muse_tools_alarm_wait_ms(uint32_t now_ms, uint32_t max_wait_ms);
