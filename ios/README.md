@@ -229,3 +229,16 @@ The picker matches both the advertised service UUID and the firmware's
 `MuseGadget-` Bluetooth name prefix, declared in `NSAccessorySetupBluetoothNames`.
 Apple requires an accessory identifier alongside the service UUID; using the
 UUID alone left the picker searching even while a Mac could see Moe advertising.
+
+To isolate an iPhone picker discovery failure, a local diagnostic build can use
+an alternate `INFOPLIST_FILE` with the `NSAccessorySetup*` keys omitted. The
+transport then uses ordinary CoreBluetooth permission and discovery; **Pair Moe**
+starts scanning, while **Scan nearby devices** opens the selectable device list.
+The accessory session is created
+only when the picker is enabled. Keep the committed Info.plist for normal builds.
+
+On 2026-10-20, Debug 0.1.0 (8) using this path discovered the physical Waveshare
+1.75C, connected, subscribed to responses, completed a protected GATT read and
+reported `Connected securely`. The user confirmed it worked. The system picker
+still failed to discover this device, even with the service and name filters;
+that separate path remains unresolved.

@@ -39,13 +39,18 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
   @ObservationIgnored private var retry: Task<Void, Never>?
   @ObservationIgnored private var desired: UUID?
   @ObservationIgnored private var retryCount = 0
-  @ObservationIgnored private let accessorySession = ASAccessorySession()
+  @ObservationIgnored private lazy var accessorySession = ASAccessorySession()
   @ObservationIgnored private var accessoryActive = false
   @ObservationIgnored private var accessoryActivated = false
   @ObservationIgnored private var pickerRequested = false
   @ObservationIgnored private var pickerShowing = false
   @ObservationIgnored private var pickedAccessory: UUID?
   @ObservationIgnored private var scanPending = false
+  // A diagnostic build can omit ASK declarations to exercise CoreBluetooth
+  // discovery and its normal iOS Bluetooth permission independently.
+  @ObservationIgnored private let usesAccessoryPicker =
+    (Bundle.main.object(forInfoDictionaryKey: "NSAccessorySetupKitSupports") as? [String])?
+    .contains("Bluetooth") == true
   @ObservationIgnored private var secureRead = false
   override init() {
     super.init()
@@ -53,6 +58,7 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
       delegate: self, queue: .main,
       options: [CBCentralManagerOptionRestoreIdentifierKey: "MusePocket.central.v1"])
     activateAccessorySession()
+    trace("discovery mode=\(usesAccessoryPicker ? "accessory picker" : "CoreBluetooth")")
   }
   private func trace(_ message: String) {
     #if DEBUG
@@ -70,18 +76,20 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
     trace(
       "scan requested; central=\(central.state.rawValue) authorization=\(CBManager.authorization.rawValue)"
     )
-    guard accessoryActivated else {
-      scanPending = true
-      state = "Preparing accessory discovery…"
-      activateAccessorySession()
-      return
-    }
-    // ASK-scoped apps get poweredOff until an accessory is authorized. An
-    // ordinary CoreBluetooth scan cannot bootstrap this authorization.
-    guard accessorySession.accessories.contains(where: { $0.bluetoothIdentifier != nil }) else {
-      scanPending = false
-      pairWithSystemPicker()
-      return
+    if usesAccessoryPicker {
+      guard accessoryActivated else {
+        scanPending = true
+        state = "Preparing accessory discovery…"
+        activateAccessorySession()
+        return
+      }
+      // ASK-scoped apps get poweredOff until an accessory is authorized. An
+      // ordinary CoreBluetooth scan cannot bootstrap this authorization.
+      guard accessorySession.accessories.contains(where: { $0.bluetoothIdentifier != nil }) else {
+        scanPending = false
+        pairWithSystemPicker()
+        return
+      }
     }
     guard central.state == .poweredOn else {
       scanPending = true
@@ -115,6 +123,7 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
     }
   }
   private func activateAccessorySession() {
+    guard usesAccessoryPicker else { return }
     guard !accessoryActive else { return }
     accessoryActive = true
     accessorySession.activate(on: .main) { [weak self] event in
@@ -158,6 +167,10 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
     }
   }
   func pairWithSystemPicker() {
+    guard usesAccessoryPicker else {
+      scan()
+      return
+    }
     trace("system accessory picker requested")
     pickerRequested = true
     activateAccessorySession()
@@ -226,7 +239,7 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
       if let desired, !connected { connect(desired) } else if scanPending { scan() }
     } else {
       clear(PocketError.disconnected)
-      if !accessoryActivated || accessorySession.accessories.isEmpty {
+      if usesAccessoryPicker && (!accessoryActivated || accessorySession.accessories.isEmpty) {
         state = "Pair Moe to authorize MusePocket. Keep its Muse pairing."
       } else {
         switch central.state {
