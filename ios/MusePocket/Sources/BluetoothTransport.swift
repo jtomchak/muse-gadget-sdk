@@ -60,6 +60,11 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
     activateAccessorySession()
     trace("discovery mode=\(usesAccessoryPicker ? "accessory picker" : "CoreBluetooth")")
   }
+  private func packetTrace(_ message: String) {
+    guard ProcessInfo.processInfo.environment["MUSE_BLE_DIAGNOSTICS"] == "1" else { return }
+    print("[MusePocket packets] " + message)
+    fflush(nil)
+  }
   private func trace(_ message: String) {
     #if DEBUG
       print("[MusePocket BLE] " + message)
@@ -407,6 +412,9 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
       becomeReady()
       return
     }
+    if let frame = try? PocketFrame(data: data) {
+      packetTrace("rx kind=\(frame.kind.rawValue) transfer=\(frame.transfer) index=\(frame.index)/\(frame.total) bytes=\(frame.payload.count)")
+    }
     do {
       guard
         let (kind, message) = try assembler.consume(data, now: ProcessInfo.processInfo.systemUptime)
@@ -428,6 +436,7 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
           throwing: PocketError.rejected(reply.error ?? "Moe rejected the request."))
       }
     } catch {
+      packetTrace("frame assembly failed: \(error.localizedDescription)")
       pending?.continuation.resume(throwing: error)
       pending = nil
       frames.removeAll()

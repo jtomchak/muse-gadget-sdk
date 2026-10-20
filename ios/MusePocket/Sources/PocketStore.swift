@@ -319,6 +319,12 @@ import Observation
     handleEvent(name, data: data)
   }
   private func handleEvent(_ name: String, data: JSONValue) {
+    if name.hasPrefix("voice."),
+      ProcessInfo.processInfo.environment["MUSE_BLE_DIAGNOSTICS"] == "1"
+    {
+      print("[MusePocket packets] event=\(name) turn=\(data["turn"].number ?? -1) offset=\(data["offset"].number ?? -1) received=\(voice.bytes.count)")
+      fflush(nil)
+    }
     do {
       switch name {
       case "voice.begin":

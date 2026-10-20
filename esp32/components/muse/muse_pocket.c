@@ -593,8 +593,13 @@ static void note_send(uint8_t *bytes, size_t frames, uint32_t turn, uint32_t gen
     for (size_t offset = 0; ok && offset < size; offset += 1024) {
         size_t n = size - offset < 1024 ? size - offset : 1024;
         unsigned char text[1369];
-        size_t written;
-        mbedtls_base64_encode(text, sizeof(text) - 1, &written, bytes + offset, n);
+        size_t written = 0;
+        /* Mbed TLS requires room for its terminating NUL as well as Base64. */
+        if (mbedtls_base64_encode(text, sizeof(text), &written, bytes + offset, n) != 0 ||
+            written >= sizeof(text)) {
+            ok = false;
+            break;
+        }
         text[written] = 0;
         data = cJSON_CreateObject();
         cJSON_AddNumberToObject(data, "turn", turn);

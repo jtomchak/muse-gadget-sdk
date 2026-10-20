@@ -1,5 +1,34 @@
 # MusePocket validation
 
+## 2026-10-20 Bluetooth voice chunk encoding
+
+With Moe's Wi-Fi off, the user reported `A Bluetooth packet was missing` while
+sending a voice request to MusePocket. Release 11's opt-in metadata capture
+showed every GATT fragment in order, including `voice.begin`, every audio offset
+and `voice.end`. The phone's accumulated audio stayed at zero from the first
+chunk. This was an audio-content error rather than an observed BLE packet gap.
+
+The firmware passed capacity 1368 for a 1369-byte Base64 buffer. A full 1024-byte
+chunk needs 1368 encoded characters plus the terminating NUL; Mbed TLS rejected
+the call and returned required capacity 1369. The ignored return code then led
+to `text[1369] = 0`, a stack-buffer overflow, and invalid chunk contents.
+The sender now passes the full capacity and checks both the return code and
+written length before using the output. Encoding failure aborts the transfer.
+
+The new production-body test links real Mbed TLS and cJSON, decodes and compares
+all emitted audio bytes, and runs with ASan/UBSan. It covers odd sample counts,
+full 1024-byte chunks, tail chunks, the 15-second maximum, encoding failure and
+send failure. The old code fails this test with a stack-buffer overflow; the
+fixed code passes. All 231 firmware host tests passed with no skips. The
+Waveshare build passed with 45% app-slot space free; the app-only flash was
+hash-verified, preserved NVS, and the post-flash heartbeat showed no panic marker.
+
+Debug 0.1.0 (12) was signed with personal team NSLC4354J7 and installed on
+MeowSuperMax as requested. Packet diagnostics require the explicit launch
+environment `MUSE_BLE_DIAGNOSTICS=1`; they log indexes, counts and offsets,
+never audio contents or credentials. Physical retry with the fixed firmware
+and complete cellular Muse voice acceptance remain pending.
+
 ## 2026-10-20 Release install and bonded reconnect
 
 Release 0.1.0 (10) was development-signed under the verified personal team,
@@ -20,8 +49,10 @@ queue admission. A bond alone never grants access; missing encryption,
 authentication, a wrong handle or failed descriptor lookup remains rejected.
 The regression test covers these states plus an actually full queue. All 230
 firmware host tests passed with no skips, and the Waveshare build and app-only
-flash passed with hash verification and NVS preserved. Physical reconnect
-acceptance is pending the attended retry.
+flash passed with hash verification and NVS preserved. After enabling Phone
+setup and reconnecting, the user confirmed the Release dashboard loaded its
+device values without the resource error. This verifies the attended reconnect
+and initial request/readback path.
 
 The display freeze remains unresolved: after the user's repeat report, a fresh
 capture showed LVGL and LCD/input tasks running normally, no DMA chunks pending,
