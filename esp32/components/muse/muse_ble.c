@@ -240,10 +240,39 @@ static int on_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *
 static const ble_uuid128_t POCKET_CMD_UUID=MUSE_UUID(4),POCKET_STATUS_UUID=MUSE_UUID(5);
 static uint16_t s_pocket_handle;
 static atomic_bool s_pocket_subscribed;
-static int pocket_access(uint16_t conn,uint16_t attr,struct ble_gatt_access_ctxt *ctxt,void *arg){
-    (void)conn;(void)attr;(void)arg;
-    if(ctxt->op==BLE_GATT_ACCESS_OP_READ_CHR){const char ready[]="{\"v\":1,\"ready\":true}";return os_mbuf_append(ctxt->om,ready,sizeof(ready)-1)==0?0:BLE_ATT_ERR_INSUFFICIENT_RES;}
-    if(ctxt->op==BLE_GATT_ACCESS_OP_WRITE_CHR){uint8_t data[512];uint16_t size;if(ble_hs_mbuf_to_flat(ctxt->om,data,sizeof(data),&size))return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;return muse_pocket_write(data,size)==0?0:BLE_ATT_ERR_INSUFFICIENT_RES;}return BLE_ATT_ERR_UNLIKELY;
+static bool pocket_connection_secure(uint16_t conn)
+{
+    if (conn != s_conn)
+        return false;
+    struct ble_gap_conn_desc description;
+    bool secure = ble_gap_conn_find(conn, &description) == 0 &&
+                  description.sec_state.encrypted && description.sec_state.authenticated;
+    /* A bonded reconnect can reach protected GATT while our GAP-event cache
+     * still says unsecured. Trust the current stack descriptor, never the
+     * existence of a bond alone, and synchronize the worker before readiness. */
+    atomic_store(&s_secure, secure);
+    muse_pocket_connection(conn, secure);
+    return secure;
+}
+static int pocket_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    (void)attr;
+    (void)arg;
+    if (!pocket_connection_secure(conn))
+        return BLE_ATT_ERR_INSUFFICIENT_AUTHEN;
+    if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR) {
+        const char ready[] = "{\"v\":1,\"ready\":true}";
+        return os_mbuf_append(ctxt->om, ready, sizeof(ready) - 1) == 0
+                   ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+    }
+    if (ctxt->op == BLE_GATT_ACCESS_OP_WRITE_CHR) {
+        uint8_t data[512];
+        uint16_t size;
+        if (ble_hs_mbuf_to_flat(ctxt->om, data, sizeof(data), &size))
+            return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+        return muse_pocket_write(data, size) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+    }
+    return BLE_ATT_ERR_UNLIKELY;
 }
 int muse_ble_pocket_send(const uint8_t *data,size_t size){uint16_t conn=s_conn;if(!s_secure||!atomic_load(&s_pocket_subscribed)||conn==BLE_HS_CONN_HANDLE_NONE)return BLE_HS_ENOTCONN;struct os_mbuf *om=ble_hs_mbuf_from_flat(data,size);return om?ble_gatts_notify_custom(conn,s_pocket_handle,om):BLE_HS_ENOMEM;}
 size_t muse_ble_pocket_mtu(void){uint16_t conn=s_conn;size_t mtu=conn==BLE_HS_CONN_HANDLE_NONE?20:ble_att_mtu(conn)-3;return mtu>512?512:mtu;}

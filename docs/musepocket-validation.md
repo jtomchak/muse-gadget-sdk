@@ -1,5 +1,33 @@
 # MusePocket validation
 
+## 2026-10-20 Release install and bonded reconnect
+
+Release 0.1.0 (10) was development-signed under the verified personal team,
+installed on MeowSuperMax and launched; CoreDevice separately confirmed its
+process remained running. It uses the working direct CoreBluetooth configuration.
+No TestFlight upload was performed.
+
+The user then saw `Resources are insufficient` immediately after connection.
+A live, no-flash JTAG capture showed the companion initialized with an empty
+command queue, but both cached security flags were false. The current NimBLE
+descriptor for that same connection was encrypted, authenticated and bonded
+with a 16-byte key. Protected readiness reads succeeded, while the worker
+rejected the first command; the generic GATT error mapping hid this distinction.
+
+Protected companion reads/writes now check the exact active connection's current
+encrypted/authenticated state and synchronize both caches before readiness or
+queue admission. A bond alone never grants access; missing encryption,
+authentication, a wrong handle or failed descriptor lookup remains rejected.
+The regression test covers these states plus an actually full queue. All 230
+firmware host tests passed with no skips, and the Waveshare build and app-only
+flash passed with hash verification and NVS preserved. Physical reconnect
+acceptance is pending the attended retry.
+
+The display freeze remains unresolved: after the user's repeat report, a fresh
+capture showed LVGL and LCD/input tasks running normally, no DMA chunks pending,
+and the screen state awake. The user rebooted with the physical buttons. This
+does not establish the panel/touch fault's cause or prove it is fixed.
+
 ## 2026-10-20 connected-device diagnostics
 
 - Physical iPhone 16 Pro Max: Debug 0.1.0 (8) discovered and connected to the
