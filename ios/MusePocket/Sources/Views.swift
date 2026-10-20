@@ -366,7 +366,7 @@ struct CardsView: View {
             VStack(alignment: .leading) {
               Text(card.title).font(.headline)
               Text(card.body).foregroundStyle(.secondary)
-              Button("Send to Moe") { Task { await store.card(card) } }.disabled(
+              Button("Send to Moe") { Task { await store.card(card, show: true) } }.disabled(
                 !store.ready || store.busy)
             }
           }

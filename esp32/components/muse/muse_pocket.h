@@ -13,6 +13,7 @@ void muse_pocket_connection(uint16_t handle,bool secure);
 void muse_pocket_settings(pocket_settings_t *out);
 void muse_pocket_kick(void);
 void muse_pocket_tick(void); /* display lock held */
+void muse_pocket_card_step(int direction); /* local offline card navigation */
 void muse_pocket_notification(uint32_t uid,const char *title,const char *body,bool removed);
 bool muse_pocket_relay_ready(void);
 bool muse_pocket_relay_recording(const int16_t *pcm,size_t frames);

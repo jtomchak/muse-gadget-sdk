@@ -1,4 +1,48 @@
-# MusePocket validation — 2026-10-05
+# MusePocket validation
+
+## 2026-10-20 connected-device diagnostics
+
+- Physical iPhone 16 Pro Max: Debug 0.1.0 (8) discovered and connected to the
+  Waveshare using direct CoreBluetooth discovery. A protected GATT read and
+  response subscription completed; the app reported `Connected securely`, and
+  the user confirmed it worked. The AccessorySetupKit picker remained unable
+  to discover it, so this remains a diagnostic configuration.
+- The user reported saved cards absent from the gadget and a frozen display.
+  Serial heartbeats continued with Wi-Fi/Muse connected. The first JTAG program
+  counter mapped to LVGL's flush wait; a subsequent debugger attach reset the
+  target, so its stack dump cannot establish the original cause. A no-flash
+  JTAG attach after recovery showed normal LVGL and LCD task waits.
+- The LCD completion path now retains a completed DMA band in a semaphore,
+  using LVGL's flush-wait callback rather than spinning the UI core. The
+  regression harness covers early/late callbacks, failed chunks and successive
+  bands. This is a candidate fix; a sustained physical freeze retest is pending.
+- The gadget now has a Cards page between Tools and Settings. It reads saved
+  NVS cards, offers previous/next and scrollable text, refreshes expiry state,
+  and defers phone-requested navigation until voice is idle. The previous code
+  rendered cards only in the avatar caption. Imported iPhone cards now request
+  display after saving as well.
+- Fresh automated checks: 10 native XCTest cases and the simulator UI flow
+  passed. The 22 optimized Swift package tests, including 12 independent SDK
+  WebSocket scenarios, passed. The firmware suite ran 229 tests: 228 passed and one crypto-vector
+  test skipped under system Python; rerunning its two-test module with the
+  ESP-IDF Python passed both. The shared Noise core test also passed with the
+  Homebrew MbedTLS pkg-config path. The desktop LVGL suite passed, including
+  empty/populated Cards and voice taking priority, on both 412×412 and
+  466×466 builds (the latter with ASan/UBSan). The Waveshare build fits its app
+  slot with 45% free, was flashed with hash verification and preserved NVS.
+- Physical serial exercise: Moe answered status requests before and after eight
+  idle/thinking transitions and a sleep/wake cycle. It remained paired with
+  Wi-Fi connected; no panic marker was captured. A final no-flash JTAG sample
+  showed LVGL sleeping normally in its worker, rather than spinning in flush
+  wait. These observations don't prove sustained touch responsiveness.
+
+Physical card display/navigation, settings persistence, timer controls, battery
+and motion behavior, ANCS permission, and live Muse voice over phone cellular
+remain separate acceptance checks. A successful build or cloud fixture is not
+evidence of those results. Debug 0.1.0 (9) installed, but iOS initially blocked
+launch while the phone was locked.
+
+## Initial validation — 2026-10-05
 
 These are local results for the MusePocket implementation, using ESP-IDF 6.0.1,
 Xcode 27 and Swift 6.4. CI configuration is included; remote CI results are separate.

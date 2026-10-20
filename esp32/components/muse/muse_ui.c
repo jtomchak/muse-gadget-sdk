@@ -52,7 +52,7 @@
 #endif
 #include <stdatomic.h>
 #include "muse_tools_ui.h"
-#define MUSE_PAGE_COUNT 3
+#define MUSE_PAGE_COUNT 4
 #else
 #define MUSE_PAGE_COUNT 2
 #endif
@@ -108,6 +108,9 @@ static lv_obj_t *s_settings;
 static lv_obj_t *s_dots[MUSE_PAGE_COUNT];
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
 static lv_obj_t *s_tools;
+static lv_obj_t *s_cards, *s_card_title, *s_card_body, *s_card_position;
+static lv_obj_t *s_card_previous, *s_card_next;
+static unsigned s_card_count;
 #endif
 static lv_obj_t *s_wifi_icon;
 static lv_obj_t *s_ble_icon;
@@ -816,6 +819,90 @@ static void on_ring_draw(lv_event_t *e)
     layer->_clip_area = clip;
 }
 
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+static void card_step(lv_event_t *event)
+{
+#if !CONFIG_MUSE_BOARD_SIMULATOR
+    muse_pocket_card_step(lv_event_get_target(event) == s_card_previous ? -1 : 1);
+#else
+    (void)event;
+#endif
+}
+static void card_done(lv_event_t *event)
+{
+    (void)event;
+    muse_ui_show_face();
+}
+static lv_obj_t *card_button(lv_obj_t *parent, const char *text, int x, int y,
+                              lv_event_cb_t callback)
+{
+    lv_obj_t *button = lv_button_create(parent);
+    lv_obj_set_size(button, s_w * 29 / 100, s_small ? 28 : 40);
+    lv_obj_align(button, LV_ALIGN_CENTER, x, y);
+    lv_obj_set_style_bg_color(button, lv_color_hex(0x201a35), 0);
+    lv_obj_t *label = make_label(button, FONT_COMPACT, COLOR_LIT);
+    lv_label_set_text(label, text);
+    lv_obj_center(label);
+    lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, NULL);
+    return button;
+}
+static void build_cards(void)
+{
+    lv_obj_set_style_bg_color(s_cards, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(s_cards, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(s_cards, LV_OBJ_FLAG_SCROLLABLE);
+    s_card_position = make_label(s_cards, FONT_COMPACT, COLOR_ACCENT);
+    lv_obj_align(s_card_position, LV_ALIGN_CENTER, 0, -s_h * 36 / 100);
+    s_card_title = make_label(s_cards, font_pick(&lv_font_montserrat_20, FONT_COMPACT), COLOR_LIT);
+    lv_obj_set_width(s_card_title, s_w * 70 / 100);
+    lv_obj_set_style_text_align(s_card_title, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(s_card_title, LV_ALIGN_CENTER, 0, -s_h * 24 / 100);
+    lv_obj_t *body = lv_obj_create(s_cards);
+    lv_obj_remove_style_all(body);
+    lv_obj_set_size(body, s_w * 70 / 100, s_h * 30 / 100);
+    lv_obj_center(body);
+    lv_obj_set_scroll_dir(body, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(body, LV_SCROLLBAR_MODE_AUTO);
+    s_card_body = make_label(body, font_pick(&lv_font_montserrat_14, FONT_COMPACT), COLOR_CAPTION);
+    lv_obj_set_width(s_card_body, lv_pct(100));
+    lv_label_set_long_mode(s_card_body, LV_LABEL_LONG_MODE_WRAP);
+    s_card_previous = card_button(s_cards, "PREVIOUS", -s_w * 16 / 100, s_h * 23 / 100, card_step);
+    s_card_next = card_button(s_cards, "NEXT", s_w * 16 / 100, s_h * 23 / 100, card_step);
+    card_button(s_cards, "DONE", 0, s_h * 34 / 100, card_done);
+    muse_ui_set_card("", "", 0, 0, false);
+}
+#endif
+
+void muse_ui_set_card(const char *title, const char *body, unsigned index, unsigned count,
+                      bool expired)
+{
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    if (!s_card_title) return;
+    s_card_count = count;
+    const char *shown_title = count ? title : "Your pocket cards";
+    const char *shown_body = !count ? "Send a card from MusePocket. Saved cards stay here offline."
+                             : expired ? "This card expired. Refresh it from MusePocket." : body;
+    char position[40];
+    if (count) snprintf(position, sizeof(position), "%s%u / %u", expired ? "EXPIRED  " : "CARDS  ", index + 1, count);
+    else snprintf(position, sizeof(position), "CARDS");
+    if (strcmp(lv_label_get_text(s_card_title), shown_title)) lv_label_set_text(s_card_title, shown_title);
+    if (strcmp(lv_label_get_text(s_card_body), shown_body)) {
+        lv_label_set_text(s_card_body, shown_body);
+        lv_obj_scroll_to_y(lv_obj_get_parent(s_card_body), 0, LV_ANIM_OFF);
+    }
+    if (strcmp(lv_label_get_text(s_card_position), position)) lv_label_set_text(s_card_position, position);
+    if (count > 1) {
+        lv_obj_remove_state(s_card_previous, LV_STATE_DISABLED);
+        lv_obj_remove_state(s_card_next, LV_STATE_DISABLED);
+    } else {
+        lv_obj_add_state(s_card_previous, LV_STATE_DISABLED);
+        lv_obj_add_state(s_card_next, LV_STATE_DISABLED);
+    }
+#else
+    (void)title; (void)body; (void)index; (void)count; (void)expired;
+#endif
+}
+
 static void build_screen(void)
 {
     lv_obj_t *scr = lv_screen_active();
@@ -825,7 +912,7 @@ static void build_screen(void)
 
     lv_obj_t *face = scr;
     if (muse_board->touch) {
-        /* Swipe between the companion, local tools, and settings. */
+        /* Swipe between the companion, local tools, cards, and settings. */
         s_tv = lv_tileview_create(scr);
         lv_obj_set_style_bg_color(s_tv, lv_color_black(), 0);
         lv_obj_set_style_bg_opa(s_tv, LV_OPA_COVER, 0);
@@ -841,6 +928,8 @@ static void build_screen(void)
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
         s_tools = lv_tileview_add_tile(s_tv, 1, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
         muse_tools_ui_build(s_tools);
+        s_cards = lv_tileview_add_tile(s_tv, 2, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
+        build_cards();
 #endif
         s_settings = lv_tileview_add_tile(s_tv, MUSE_PAGE_COUNT - 1, 0, LV_DIR_LEFT);
         face = s_face;
@@ -1265,6 +1354,7 @@ static void update_chrome(float now)
         if (tile == s_tools) {
             page = 1;
         }
+        if (tile == s_cards) page = 2;
 #endif
         bool subpage = settings && muse_settings_ui_in_subpage();
         bool swipe = !subpage;
@@ -1590,6 +1680,8 @@ static void frame_tick(lv_timer_t *timer)
 #if !CONFIG_MUSE_BOARD_SIMULATOR
     muse_pocket_tick();
 #endif
+    if (mode != MUSE_MODE_IDLE && s_tv && lv_tileview_get_tile_active(s_tv) == s_cards)
+        muse_ui_show_face();
     bool mode_changed = mode != s_last_mode;
 #endif
 
@@ -1722,6 +1814,12 @@ void muse_ui_show_face(void)
 bool muse_ui_show_page(unsigned page)
 {
     if (!s_tv || page >= MUSE_PAGE_COUNT) return false;
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    if (page == 2) {
+        muse_menu_close();
+        image_hide_locked();
+    }
+#endif
     lv_obj_add_flag(s_tv, LV_OBJ_FLAG_SCROLLABLE);
     lv_tileview_set_tile_by_index(s_tv, page, 0, LV_ANIM_OFF);
     s_shown_page = -1;
@@ -1735,10 +1833,12 @@ muse_ui_preview_t muse_ui_preview(void)
     unsigned page = lv_tileview_get_tile_active(s_tv) == s_settings ? MUSE_PAGE_COUNT - 1 : 0;
 #if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
     if (lv_tileview_get_tile_active(s_tv) == s_tools) page = 1;
+    if (lv_tileview_get_tile_active(s_tv) == s_cards) page = 2;
 #endif
     return (muse_ui_preview_t){ .state = lv_label_get_text(s_state_lbl),
         .avatar_frames = s_avatar_frames, .page = page, .pages = MUSE_PAGE_COUNT,
         .brightness = s_brightness, .dark = s_dark,
+        .card_count = s_card_count,
         .clock = lv_label_get_text(s_clock), .clock_visible = s_clock_visible };
 }
 #endif

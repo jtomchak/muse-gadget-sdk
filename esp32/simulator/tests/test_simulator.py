@@ -122,7 +122,13 @@ def main() -> None:
         done = inspect("face=idle\nwifi=off\npage=1\ntool=next\ntool=next\ntool=next\n"
                        "tool=act\nasleep=true\nadvance=181000\n")
         assert done["tool_value"] == "00:00 DONE" and not done["dark"], done
-        assert done["page"] == 1 and done["pages"] == 3, done
+        assert done["page"] == 1 and done["pages"] == 4, done
+        empty_cards = inspect("face=idle\npage=2\n")
+        assert empty_cards["page"] == 2 and empty_cards["card_count"] == 0, empty_cards
+        card = inspect("face=idle\ncard=Packing|Coffee and charger\n")
+        assert card["page"] == 2 and card["card_count"] == 1, card
+        interrupted_card = inspect("face=idle\ncard=Packing|Coffee and charger\nface=speaking\n")
+        assert interrupted_card["page"] == 0, interrupted_card
         paused = inspect("face=idle\nwifi=off\npage=1\ntool=next\ntool=next\n"
                          "tool=act\nadvance=10000\ntool=act\nadvance=60000\n")
         assert paused["tool_value"] == "24:50", paused

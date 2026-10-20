@@ -55,6 +55,8 @@ static atomic_bool s_secure, s_initialized;
 static atomic_uint s_generation;
 static uint16_t s_transfer;
 static char s_notice[401];
+static int s_card_index;
+static bool s_card_open;
 static uint8_t *s_avatar, *s_in_audio, *s_note;
 static size_t s_in_size, s_in_used, s_in_frames, s_note_frames;
 static uint32_t s_in_crc, s_turn, s_note_turn, s_note_generation;
@@ -329,7 +331,12 @@ static const char *apply(int action, pocket_model_t *candidate, const cJSON *par
                 time_t now = time(NULL);
                 if (c->expires && (now < 1704067200 || now >= c->expires))
                     return "This card expired or Moe's clock needs synchronization";
-                notice(c->title, c->body);
+                xSemaphoreTake(s_lock, portMAX_DELAY);
+                s_card_index = i;
+                s_card_open = true;
+                xSemaphoreGive(s_lock);
+                muse_state_set_asleep(false);
+                muse_state_poke();
                 return NULL;
             }
     }
@@ -731,6 +738,31 @@ void muse_pocket_avatar_build(lv_obj_t *canvas)
     lv_obj_add_flag(s_avatar_obj, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(s_avatar_obj, avatar_clicked, LV_EVENT_CLICKED, NULL);
 }
+static void cards_tick(void)
+{
+    if (xSemaphoreTake(s_lock, 0) != pdTRUE)
+        return;
+    int card_count = s_model->card_count;
+    if (s_card_index >= card_count || s_card_index < 0)
+        s_card_index = 0;
+    pocket_card_t card = {0};
+    if (card_count)
+        card = s_model->cards[s_card_index];
+    int card_index = s_card_index;
+    bool open_card = s_card_open && muse_state_mode(NULL) == MUSE_MODE_IDLE;
+    if (open_card)
+        s_card_open = false;
+    xSemaphoreGive(s_lock);
+    time_t now_epoch = time(NULL);
+    bool expired = card.expires && (now_epoch < 1704067200 || now_epoch >= card.expires);
+    muse_ui_set_card(card.title, card.body, card_index, card_count, expired);
+    if (open_card && card_count) {
+        muse_state_set_asleep(false);
+        muse_state_poke();
+        if (!muse_ui_show_page(2))
+            muse_state_set_caption("%s\n%s", card.title, expired ? "Card expired" : card.body);
+    }
+}
 void muse_pocket_tick(void)
 {
     if (!atomic_load(&s_initialized) || xSemaphoreTake(s_lock, 0) != pdTRUE)
@@ -746,6 +778,7 @@ void muse_pocket_tick(void)
         muse_state_set_caption("%s", message);
         muse_ui_show_page(0);
     }
+    cards_tick();
     if (!s_avatar_obj)
         return;
     bool visible = settings.avatar != 0 && !muse_state_asleep();
@@ -801,4 +834,15 @@ void muse_pocket_tick(void)
                  lv_obj_get_style_y(s_avatar_canvas, LV_PART_MAIN));
     lv_obj_add_flag(s_avatar_canvas, LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(s_avatar_obj, LV_OBJ_FLAG_HIDDEN);
+}
+void muse_pocket_card_step(int direction)
+{
+    if (!atomic_load(&s_initialized))
+        return;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    int count = s_model->card_count;
+    if (count)
+        s_card_index = (s_card_index + (direction < 0 ? count - 1 : 1)) % count;
+    xSemaphoreGive(s_lock);
+    muse_state_poke();
 }

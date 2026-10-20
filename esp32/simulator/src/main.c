@@ -313,11 +313,11 @@ static bool apply_setting(const char *key, const char *value, bool real_time)
         muse_experience_press(flag, (uint32_t)(esp_timer_get_time() / 1000));
         return true;
     }
-    if (!strcmp(key, "page_request") && parse_long(value, 0, 2, &number)) {
+    if (!strcmp(key, "page_request") && parse_long(value, 0, 3, &number)) {
         muse_ui_request_page((unsigned)number);
         return true;
     }
-    if (!strcmp(key, "page") && parse_long(value, 0, 2, &number)) {
+    if (!strcmp(key, "page") && parse_long(value, 0, 3, &number)) {
         return muse_ui_show_page((unsigned)number);
     }
     if (!strcmp(key, "face")) {
@@ -326,6 +326,16 @@ static bool apply_setting(const char *key, const char *value, bool real_time)
     if (!strcmp(key, "caption")) {
         muse_state_set_caption("%s", value);
         return true;
+    }
+    if (!strcmp(key, "card")) {
+        const char *split = strchr(value, '|');
+        size_t length = split ? (size_t)(split - value) : strlen(value);
+        if (!length || length > 32 || (split && strlen(split + 1) > 160)) return false;
+        char title[33];
+        memcpy(title, value, length);
+        title[length] = 0;
+        muse_ui_set_card(title, split ? split + 1 : "", 0, 1, false);
+        return muse_ui_show_page(2);
     }
     if (!strcmp(key, "level") && parse_float(value, 0.0f, 1.0f, &scalar)) {
         s_level = scalar;
@@ -554,9 +564,9 @@ int main(int argc, char **argv)
         render_for(run_ms, false);
         muse_ui_preview_t preview = muse_ui_preview();
         printf("@preview {\"state\":\"%s\",\"avatar_frames\":%u,\"page\":%u,\"pages\":%u,"
-               "\"brightness\":%d,\"dark\":%s,\"tool_value\":\"%s\",\"clock\":\"%s\",\"clock_visible\":%s}\n",
+               "\"brightness\":%d,\"dark\":%s,\"tool_value\":\"%s\",\"clock\":\"%s\",\"clock_visible\":%s,\"card_count\":%u}\n",
                preview.state, (unsigned)preview.avatar_frames, preview.page, preview.pages,
-               preview.brightness, preview.dark ? "true" : "false", muse_tools_ui_value(), preview.clock, preview.clock_visible ? "true" : "false");
+               preview.brightness, preview.dark ? "true" : "false", muse_tools_ui_value(), preview.clock, preview.clock_visible ? "true" : "false", preview.card_count);
         if (screenshot && !write_snapshot(screenshot)) {
             return 1;
         }

@@ -1,0 +1,2 @@
+face=idle
+card=Packing|Coffee, charger, keys and headphones. Swipe to return to tools or settings. Your saved cards stay here when the iPhone is disconnected.

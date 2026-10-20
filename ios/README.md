@@ -63,6 +63,9 @@ connection or transfer fails.
 - Cards: eight saved notes/checklists, selected calendar events and reminders,
   and an expiring Open-Meteo weather card for entered coordinates. Expiring cards
   require synchronized device time. Moe defers cards while voice is active.
+  On the touch gadget, swipe through Companion → Tools → Cards → Settings.
+  Cards has previous/next controls, scrollable text and a Done button; it reads
+  saved NVS cards without the phone. Sending an imported card also opens it.
 - Personality: name, accent, Orbit/Pixel cat avatars or a 64×64 RGB565 image from
   PhotosPicker. Voice and speech-rate choices apply to iPhone-generated replies.
 - Find Moe: wake its display and queue a chirp when audio is idle.

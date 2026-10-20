@@ -39,6 +39,9 @@ void muse_ui_request_page(unsigned page);
 void muse_ui_show_face(void);
 /* Select a top-level page immediately (0 companion, last settings). */
 bool muse_ui_show_page(unsigned page);
+/* Refresh the saved-card tile; navigation is explicit and voice retains priority. */
+void muse_ui_set_card(const char *title, const char *body, unsigned index, unsigned count,
+                      bool expired);
 
 /* Desktop preview diagnostics; implementation exists only in the simulator. */
 typedef struct {
@@ -49,6 +52,7 @@ typedef struct {
     bool dark;
     const char *clock;
     bool clock_visible;
+    unsigned card_count;
 } muse_ui_preview_t;
 muse_ui_preview_t muse_ui_preview(void);
 /* Settings sub-pages turn off the tile swipe so they can use horizontal gestures. */

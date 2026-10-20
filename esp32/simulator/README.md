@@ -103,6 +103,11 @@ Run this from a terminal in a logged-in Linux or macOS desktop session:
 ./esp32/simulator/build/muse_simulator
 ```
 
+The optimized touch layout has four pages: Companion (0), Tools (1), Cards (2)
+and Settings (3). Scenarios can use `card=Title|Body` to preview a saved card;
+`tests/scenarios/cards.txt` exercises the dedicated card layout. Cards yield to
+voice playback and recording.
+
 Mouse input acts as touch. The keyboard controls the common UI states:
 
 | Key | Action |
