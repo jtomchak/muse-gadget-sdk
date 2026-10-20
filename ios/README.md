@@ -35,9 +35,16 @@ connection or transfer fails.
 1. Build the fork's Waveshare 1.75C firmware using ESP-IDF **6.0.1** and the existing
    [board instructions](../esp32/devices/AGENTS.md). Keep
    `CONFIG_MUSE_OPTIMIZED_EXPERIENCE=y` for the MusePocket service.
-2. Enable Phone setup in Moe's settings (the optional BOOT shortcut can open it).
-3. In MusePocket choose Pair Moe, or scan nearby devices. Confirm the six-digit
-   passkey shown on Moe. The service requires encryption and authenticated bonding.
+2. Keep the existing official Muse account pairing. Enable Phone setup in Moe's
+   settings (the optional BOOT shortcut can open it). The SDK turns this switch
+   off after official Muse setup and at subsequent boots of registered devices.
+   This switch makes the companion discoverable without removing Muse credentials.
+3. In MusePocket choose Pair Moe, or Scan nearby devices. On first use both paths
+   open Apple's AccessorySetupKit picker to authorize Moe for MusePocket; Muse
+   account registration alone does not authorize a second iPhone app. Confirm the
+   six-digit passkey shown on Moe. The service requires encryption and authenticated
+   bonding. Subsequent scans also include matching peripherals already connected
+   to the iPhone, even if a different app currently owns their physical BLE link.
 4. Refresh the dashboard, sync the clock, customize settings, then Apply settings.
    Saved device state is read back after changes. A disconnect during a transfer
    requires reconnecting and refreshing before retrying.
@@ -203,3 +210,17 @@ Sign in to App Store Connect, create or verify the app record for
 `app-store-connect` export under that same verified team, preserving the archive
 and incrementing build numbers for subsequent uploads. Keep credentials outside
 the repository. Verify Apple processing separately from upload completion.
+
+## Bluetooth diagnostics
+
+Debug builds log only connection stages, accessory-session event types,
+characteristic UUIDs/properties, readiness and error domain/codes. They do not log
+voice, cards, credentials or raw BLE payloads. `devicectl device process launch
+--console` captures these messages for an attended physical pairing test.
+
+For an AccessorySetupKit-scoped app, `CBCentralManager` can report `poweredOff`
+before an accessory is authorized even when the phone's radio is on. MusePocket
+activates the accessory session at startup, opens the system picker before gating
+first-use discovery on CoreBluetooth power, and defers a newly selected connection
+until CoreBluetooth becomes ready. An empty authorized-accessory list is shown as
+an authorization step rather than a Bluetooth power failure.

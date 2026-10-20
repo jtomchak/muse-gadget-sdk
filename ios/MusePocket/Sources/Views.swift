@@ -94,7 +94,7 @@ struct PocketDashboard: View {
           VStack(alignment: .leading, spacing: 12) {
             Text("Bring Moe closer").font(.title3.bold())
             Text(
-              "Enable Phone setup in Moe’s Bluetooth settings. Pair with the six-digit code on its screen."
+              "Keep Moe paired in Muse. Turn Phone setup on in Moe’s Bluetooth settings, then connect here with the six-digit code on its screen."
             ).foregroundStyle(.secondary)
             Button("Pair Moe", systemImage: "antenna.radiowaves.left.and.right") {
               store.bluetooth.pairWithSystemPicker()
@@ -144,7 +144,8 @@ struct PocketDashboard: View {
               HStack {
                 Text(device.name)
                 Spacer()
-                Text("\(device.rssi) dBm").foregroundStyle(.secondary)
+                Text(device.rssi.map { "\($0) dBm" } ?? "Connected to iPhone")
+                  .foregroundStyle(.secondary)
               }
             }
           }

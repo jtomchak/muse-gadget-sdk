@@ -7,13 +7,15 @@ import UIKit
 
 struct NearbyMoe: Identifiable {
   let id: UUID, name: String
-  var rssi: Int
+  var rssi: Int?
 }
 @MainActor @Observable
 final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelegate,
   @preconcurrency CBPeripheralDelegate
 {
-  private(set) var state = "Not connected"
+  private(set) var state = "Not connected" {
+    didSet { trace("state: " + state) }
+  }
   private(set) var nearby: [NearbyMoe] = []
   private(set) var connected = false
   private(set) var protocolReady = false
@@ -39,20 +41,66 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
   @ObservationIgnored private var retryCount = 0
   @ObservationIgnored private let accessorySession = ASAccessorySession()
   @ObservationIgnored private var accessoryActive = false
+  @ObservationIgnored private var accessoryActivated = false
+  @ObservationIgnored private var pickerRequested = false
+  @ObservationIgnored private var pickerShowing = false
+  @ObservationIgnored private var pickedAccessory: UUID?
+  @ObservationIgnored private var scanPending = false
   @ObservationIgnored private var secureRead = false
   override init() {
     super.init()
     central = CBCentralManager(
       delegate: self, queue: .main,
       options: [CBCentralManagerOptionRestoreIdentifierKey: "MusePocket.central.v1"])
+    activateAccessorySession()
+  }
+  private func trace(_ message: String) {
+    #if DEBUG
+      print("[MusePocket BLE] " + message)
+      fflush(nil)
+    #endif
+  }
+  private func traceError(_ stage: String, _ error: Error?) {
+    if let error {
+      let error = error as NSError
+      trace("\(stage): \(error.domain) code=\(error.code)")
+    }
   }
   func scan() {
-    guard central.state == .poweredOn else {
-      state = "Turn Bluetooth on to find Moe."
+    trace(
+      "scan requested; central=\(central.state.rawValue) authorization=\(CBManager.authorization.rawValue)"
+    )
+    guard accessoryActivated else {
+      scanPending = true
+      state = "Preparing accessory discovery…"
+      activateAccessorySession()
       return
     }
+    // ASK-scoped apps get poweredOff until an accessory is authorized. An
+    // ordinary CoreBluetooth scan cannot bootstrap this authorization.
+    guard accessorySession.accessories.contains(where: { $0.bluetoothIdentifier != nil }) else {
+      scanPending = false
+      pairWithSystemPicker()
+      return
+    }
+    guard central.state == .poweredOn else {
+      scanPending = true
+      state = "Waiting for Bluetooth. Check iPhone Bluetooth settings."
+      return
+    }
+    scanPending = false
     nearby.removeAll()
     state = "Looking for Moe…"
+    // iOS can share a peripheral connection between apps. It may no longer
+    // advertise while Muse owns that physical link, so include connected peers.
+    let connectedPeers = central.retrieveConnectedPeripherals(withServices: [
+      CBUUID(string: PocketUUID.advertisedService), CBUUID(string: PocketUUID.service),
+    ])
+    for peripheral in connectedPeers {
+      found[peripheral.identifier] = peripheral
+      nearby.append(NearbyMoe(id: peripheral.identifier, name: peripheral.name ?? "Moe", rssi: nil))
+    }
+    trace("already-connected matching peripherals=\(connectedPeers.count)")
     central.scanForPeripherals(
       withServices: [CBUUID(string: PocketUUID.advertisedService)],
       options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
@@ -66,40 +114,84 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
       }
     }
   }
-  func pairWithSystemPicker() {
-    guard !accessoryActive else {
-      presentPicker()
-      return
-    }
+  private func activateAccessorySession() {
+    guard !accessoryActive else { return }
     accessoryActive = true
     accessorySession.activate(on: .main) { [weak self] event in
       MainActor.assumeIsolated {
         guard let self else { return }
-        if event.eventType == .activated {
-          self.presentPicker()
-        } else if event.eventType == .accessoryAdded, let id = event.accessory?.bluetoothIdentifier
-        {
-          self.connect(id)
-        } else if event.eventType == .pickerDidDismiss, self.desired == nil {
-          self.state = "Choose Moe or scan nearby devices."
+        self.trace("accessory event=\(event.eventType.rawValue)")
+        self.traceError("accessory event", event.error)
+        switch event.eventType {
+        case .activated:
+          self.accessoryActivated = true
+          self.trace("authorized accessories=\(self.accessorySession.accessories.count)")
+          if self.pickerRequested {
+            self.presentPicker()
+          } else if self.scanPending {
+            self.scan()
+          } else if self.accessorySession.accessories.isEmpty {
+            self.state = "Pair Moe to authorize MusePocket. Keep its Muse pairing."
+          }
+        case .accessoryAdded:
+          self.pickedAccessory = event.accessory?.bluetoothIdentifier
+        case .pickerDidPresent:
+          self.pickerShowing = true
+        case .pickerDidDismiss:
+          self.pickerShowing = false
+          self.pickerRequested = false
+          if let id = self.pickedAccessory {
+            self.pickedAccessory = nil
+            self.connect(id)
+          } else if self.desired == nil {
+            self.state = "Keep Phone setup on Moe enabled, then choose Pair Moe."
+          }
+        case .invalidated:
+          self.accessoryActivated = false
+          self.pickerRequested = false
+          self.pickerShowing = false
+          self.state = "Accessory setup is unavailable. Reopen MusePocket to retry."
+        default: break
         }
         if let error = event.error { self.state = error.localizedDescription }
       }
     }
   }
+  func pairWithSystemPicker() {
+    trace("system accessory picker requested")
+    pickerRequested = true
+    activateAccessorySession()
+    if accessoryActivated { presentPicker() } else { state = "Preparing accessory picker…" }
+  }
   private func presentPicker() {
+    guard accessoryActivated, !pickerShowing else { return }
+    pickerShowing = true
+    state = "Choose Moe in the iPhone accessory picker."
     let descriptor = ASDiscoveryDescriptor()
     descriptor.bluetoothServiceUUID = CBUUID(string: PocketUUID.advertisedService)
+    descriptor.supportedOptions = [.bluetoothPairingLE]
     let image = UIImage(systemName: "circle.inset.filled") ?? UIImage()
     let item = ASPickerDisplayItem(
       name: "Pocket Muse Moe", productImage: image, descriptor: descriptor)
     accessorySession.showPicker(for: [item]) { [weak self] error in
-      MainActor.assumeIsolated { if let error { self?.state = error.localizedDescription } }
+      MainActor.assumeIsolated {
+        if let error {
+          self?.pickerShowing = false
+          self?.pickerRequested = false
+          self?.traceError("show picker", error)
+          self?.state = error.localizedDescription
+        }
+      }
     }
   }
   func connect(_ id: UUID) {
+    trace("connect requested")
     retry?.cancel()
     desired = id
+    guard central.state == .poweredOn else {
+      state = "Waiting for iPhone accessory authorization…"
+      return
+    }
     central.stopScan()
     let target = found[id] ?? central.retrievePeripherals(withIdentifiers: [id]).first
     guard let target else {
@@ -117,16 +209,30 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
   }
   func disconnect() {
     desired = nil
+    pickedAccessory = nil
+    scanPending = false
     retry?.cancel()
     if let peripheral { central.cancelPeripheralConnection(peripheral) }
     clear(PocketError.disconnected)
     state = "Not connected"
   }
   func centralManagerDidUpdateState(_ central: CBCentralManager) {
-    if central.state != .poweredOn {
+    trace(
+      "central state=\(central.state.rawValue) authorization=\(CBManager.authorization.rawValue)")
+    if central.state == .poweredOn {
+      if let desired, !connected { connect(desired) } else if scanPending { scan() }
+    } else {
       clear(PocketError.disconnected)
-      state =
-        central.state == .unauthorized ? "Allow Bluetooth in iPhone Settings." : "Bluetooth is off."
+      if !accessoryActivated || accessorySession.accessories.isEmpty {
+        state = "Pair Moe to authorize MusePocket. Keep its Muse pairing."
+      } else {
+        switch central.state {
+        case .unauthorized: state = "Allow MusePocket accessory access in iPhone Settings."
+        case .poweredOff: state = "Turn Bluetooth on in iPhone Settings."
+        case .unsupported: state = "Bluetooth is unavailable on this device."
+        default: state = "Waiting for Bluetooth…"
+        }
+      }
     }
   }
   func centralManager(_ central: CBCentralManager, willRestoreState dict: [String: Any]) {
@@ -146,6 +252,7 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
     _ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
     advertisementData: [String: Any], rssi RSSI: NSNumber
   ) {
+    trace("advertisement discovered; rssi=\(RSSI.intValue)")
     found[peripheral.identifier] = peripheral
     let item = NearbyMoe(
       id: peripheral.identifier, name: peripheral.name ?? "Moe", rssi: RSSI.intValue)
@@ -162,6 +269,7 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
     }
     self.peripheral = peripheral
     connected = true
+    trace("CoreBluetooth connected; discovering companion service")
     retryCount = 0
     state = "Pairing securely. Enter the code shown on Moe."
     peripheral.discoverServices([CBUUID(string: PocketUUID.service)])
@@ -174,8 +282,11 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
   ) { disconnected(peripheral, error: error) }
   private func disconnected(_ p: CBPeripheral, error: Error?) {
     guard desired == p.identifier else { return }
+    traceError("disconnected", error)
     clear(error ?? PocketError.disconnected)
-    state = "Connection lost. Moe’s local tools keep working."
+    state =
+      error.map { "Connection lost: " + $0.localizedDescription }
+      ?? "Connection lost. Check Phone setup on Moe."
     onDisconnect?()
     guard desired == p.identifier else { return }
     retryCount += 1
@@ -204,6 +315,8 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
     writeContinuation = nil
   }
   func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+    traceError("service discovery", error)
+    trace("discovered companion services=\(peripheral.services?.count ?? 0)")
     guard desired == peripheral.identifier else { return }
     guard error == nil,
       let service = peripheral.services?.first(where: {
@@ -223,7 +336,9 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
       state = error!.localizedDescription
       return
     }
+    trace("companion characteristics=\(service.characteristics?.count ?? 0)")
     for c in service.characteristics ?? [] {
+      trace("characteristic \(c.uuid.uuidString) properties=\(c.properties.rawValue)")
       switch c.uuid.uuidString.uppercased() {
       case PocketUUID.command: command = c
       case PocketUUID.response: response = c
@@ -243,6 +358,8 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
     error: Error?
   ) {
     guard desired == peripheral.identifier else { return }
+    traceError("subscription", error)
+    trace("response notifying=\(characteristic.isNotifying)")
     if let error { state = error.localizedDescription } else { becomeReady() }
   }
   private func becomeReady() {
@@ -255,6 +372,10 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
     _ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?
   ) {
     guard desired == peripheral.identifier else { return }
+    if !protocolReady || error != nil {
+      traceError("secure response read", error)
+      trace("handshake read bytes=\(characteristic.value?.count ?? 0)")
+    }
     guard let data = characteristic.value, error == nil else {
       if let error { state = error.localizedDescription }
       return

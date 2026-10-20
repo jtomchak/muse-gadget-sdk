@@ -5,6 +5,22 @@ import XCTest
 @testable import MusePocket
 
 @MainActor final class PocketStoreTests: XCTestCase {
+  func testScanWaitsForAccessoryActivationInsteadOfReportingBluetoothOff() {
+    // Session activation is asynchronous on the main queue. No callback can run
+    // until this synchronous MainActor test yields to the run loop.
+    let bluetooth = BluetoothTransport()
+    bluetooth.scan()
+    XCTAssertEqual(bluetooth.state, "Preparing accessory discovery…")
+    XCTAssertFalse(bluetooth.connected)
+  }
+  func testRepeatedPairRequestBeforeActivationWaitsForSystemPicker() {
+    let bluetooth = BluetoothTransport()
+    bluetooth.pairWithSystemPicker()
+    bluetooth.pairWithSystemPicker()
+    XCTAssertEqual(bluetooth.state, "Preparing accessory picker…")
+    XCTAssertFalse(bluetooth.protocolReady)
+  }
+
   func testPreviewRequiresExplicitModeAndPersistsAcknowledgedSettings() async {
     let store = PocketStore(preview: true)
     XCTAssertTrue(store.ready)
