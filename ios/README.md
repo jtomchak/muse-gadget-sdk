@@ -224,3 +224,8 @@ activates the accessory session at startup, opens the system picker before gatin
 first-use discovery on CoreBluetooth power, and defers a newly selected connection
 until CoreBluetooth becomes ready. An empty authorized-accessory list is shown as
 an authorization step rather than a Bluetooth power failure.
+
+The picker matches both the advertised service UUID and the firmware's
+`MuseGadget-` Bluetooth name prefix, declared in `NSAccessorySetupBluetoothNames`.
+Apple requires an accessory identifier alongside the service UUID; using the
+UUID alone left the picker searching even while a Mac could see Moe advertising.

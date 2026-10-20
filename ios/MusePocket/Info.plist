@@ -26,6 +26,10 @@
 	<array>
 		<string>7FDD3D1C-38EA-46CF-8B46-314ECF5F240C</string>
 	</array>
+	<key>NSAccessorySetupBluetoothNames</key>
+	<array>
+		<string>MuseGadget-</string>
+	</array>
 	<key>NSAccessorySetupKitSupports</key>
 	<array>
 		<string>Bluetooth</string>

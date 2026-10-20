@@ -169,6 +169,9 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
     state = "Choose Moe in the iPhone accessory picker."
     let descriptor = ASDiscoveryDescriptor()
     descriptor.bluetoothServiceUUID = CBUUID(string: PocketUUID.advertisedService)
+    // ASK also requires an accessory identifier alongside the service UUID.
+    // Match the firmware's scan-response name; keep this declared in Info.plist.
+    descriptor.bluetoothNameSubstring = "MuseGadget-"
     descriptor.supportedOptions = [.bluetoothPairingLE]
     let image = UIImage(systemName: "circle.inset.filled") ?? UIImage()
     let item = ASPickerDisplayItem(
