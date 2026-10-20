@@ -43,6 +43,9 @@ static void on_result(const ota_event_t *event, void *user) {
 #include "esp_https_ota.h"
 #include "freertos/task.h"
 #include "stack_monitor.h"
+#include "psa/crypto.h"
+static esp_http_client_config_t s_http;
+int esp_http_client_get_status_code(esp_http_client_handle_t client){(void)client;return 200;}
 
 void *esp_crt_bundle_attach;
 static esp_app_desc_t incoming = { .version = "1.0.1" };
@@ -70,6 +73,7 @@ const char *esp_err_to_name(esp_err_t err) { (void)err; return "fake error"; }
 esp_err_t esp_https_ota_begin(const esp_https_ota_config_t *config,
                              esp_https_ota_handle_t *handle) {
     assert(strcmp(config->http_config->url, "https://example.com/update.bin") == 0);
+    s_http=*config->http_config;
     starts++;
     *handle = &incoming;
     return ESP_OK;
@@ -85,6 +89,8 @@ esp_err_t esp_https_ota_get_img_desc(esp_https_ota_handle_t handle,
 esp_err_t esp_https_ota_perform(esp_https_ota_handle_t handle) {
     assert(handle == &incoming);
     downloads++;
+    esp_http_client_event_t event={.event_id=HTTP_EVENT_ON_DATA,.user_data=s_http.user_data,.data="hello",.data_len=5};
+    assert(s_http.event_handler(&event)==ESP_OK);
     return ESP_OK;
 }
 
@@ -126,6 +132,7 @@ static void attempt(const char *version, bool force, ota_result_t expected) {
 
 int main(void) {
 #if CONFIG_HOMEHUB_OTA_ENABLED
+    assert(psa_crypto_init()==PSA_SUCCESS);
     assert(ota_is_enabled());
     attempt("1.0.1", false, OTA_RESULT_SKIPPED);
     attempt("999.0.0", false, OTA_RESULT_SKIPPED);
@@ -133,6 +140,19 @@ int main(void) {
     attempt("1.0.1", true, OTA_RESULT_APPLIED);
     finish_result = ESP_FAIL;
     attempt("1000.0.0", false, OTA_RESULT_FAILED);
+    finish_result=ESP_OK;
+    const char *checksums[]={"2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824","0000000000000000000000000000000000000000000000000000000000000000"};
+    for(int i=0;i<2;i++){
+        finishes=aborts=reboots=callbacks=0;
+        assert(ota_start_verified("https://example.com/update.bin",checksums[i],on_result,&callbacks));
+        assert(!ota_start_verified("https://example.com/update.bin",checksums[i],NULL,NULL));
+        TaskFunction_t task=pending_task;pending_task=NULL;task(pending_arg);
+        assert(s_http.disable_auto_redirect);assert(callbacks==1);
+        assert(last_result==(i?OTA_RESULT_FAILED:OTA_RESULT_APPLIED));
+        assert(finishes==!i);assert(aborts==i);assert(reboots==!i);
+    }
+    assert(!ota_start_verified("http://example.com/update.bin",checksums[0],NULL,NULL));
+    assert(!ota_start_verified("https://example.com/update.bin","bad",NULL,NULL));
 #else
     // No network, task or flash fakes are linked in this configuration.
     // A dependency on any of those operations would fail the link.

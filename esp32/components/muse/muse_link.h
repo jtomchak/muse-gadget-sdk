@@ -59,6 +59,7 @@ typedef struct {
     /* Fills the VM whose id is want_vm (empty: Link's preferred VM). *vm_token is heap. */
     bool (*hatch_vm)(const char *want_vm, char *vm_id, size_t id_cap, char *vm_name, size_t name_cap,
                      char **vm_token);
+    bool (*phone_muse_host)(char *host, size_t capacity); /* paired Noise host, no credentials */
     bool (*talk_press)(void);                     /* true: Link used the press (pairing confirm) */
     void (*reset_setup)(void);                    /* forget Link setup and reboot */
     /* Requests to the VM on Link's own Noise session, for boards without PSRAM for their own. */
@@ -71,6 +72,7 @@ typedef struct {
     void (*wifi_nap)(bool nap);                   /* screen off a while: leave Wi-Fi until false */
     int (*wifi_saved)(muse_wifi_saved_t *out, int max);   /* most recently joined first */
     void (*wifi_forget)(const char *ssid);        /* one saved network; empty forgets them all */
+    bool (*pocket_ota)(const char *url,const char *sha256);
 } muse_link_ops_t;
 
 void muse_link_register(const muse_link_ops_t *ops);
@@ -83,6 +85,7 @@ const char *muse_link_state_name(muse_link_state_t state);
 bool muse_link_hatch_linked(void);
 bool muse_link_hatch_vm(const char *want_vm, char *vm_id, size_t id_cap, char *vm_name, size_t name_cap,
                         char **vm_token);
+bool muse_link_phone_muse_host(char *host, size_t capacity);
 bool muse_link_talk_press(void);
 void muse_link_reset_setup(void);
 /* The first saved network, owned by Link. Return false when Link hasn't registered. */
@@ -96,3 +99,5 @@ int64_t muse_link_req_open(const char *verb, const char *path, const char *const
 bool muse_link_req_send(int64_t id, const void *data, size_t len, bool end_body, int wait_ms);
 void muse_link_req_cancel(int64_t id);
 void muse_link_ble_apply(void);
+
+bool muse_link_pocket_ota(const char *url,const char *sha256);

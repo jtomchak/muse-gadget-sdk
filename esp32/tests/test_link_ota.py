@@ -47,11 +47,13 @@ class LinkOtaTest(unittest.TestCase):
         if not compiler or shutil.which(compiler[0]) is None:
             self.skipTest("C compiler unavailable")
         binary = include / "ota-test"
+        crypto = subprocess.run(["pkg-config", "--cflags", "--libs", "mbedcrypto"], capture_output=True, text=True)
+        crypto_flags = shlex.split(crypto.stdout) if crypto.returncode == 0 else ["-lmbedcrypto"]
         compiled = subprocess.run(
             [*compiler, "-std=c11", "-D_GNU_SOURCE", "-Wall", "-Wextra", "-Werror",
              "-DLINK_FAKE_CUSTOM_TASKS=1",
              "-I", str(include), "-I", str(ROOT / "tests/link_fakes"),
-             "-I", str(ROOT / "main"), *map(str, sources), "-o", str(binary)],
+             "-I", str(ROOT / "main"), *map(str, sources), *crypto_flags, "-o", str(binary)],
             capture_output=True, text=True,
         )
         self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)

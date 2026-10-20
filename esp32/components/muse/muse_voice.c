@@ -15,6 +15,10 @@
  */
 
 #include "muse_voice.h"
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+#include "muse_pocket.h"
+static bool s_phone_turn;
+#endif
 
 #include <math.h>
 #include <stdio.h>
@@ -252,7 +256,11 @@ static bool record(bool barge_in, size_t *held, char *why, size_t cap)
     muse_state_set_progress(0);
     s_rec_n = s_sent = 0;
     s_live = s_tried = false;
-    if (!s_rec || (muse_hatch_ready() && !s_held_count)) {
+    if (
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+        !s_phone_turn &&
+#endif
+        (!s_rec || (muse_hatch_ready() && !s_held_count))) {
         go_live();
     }
     muse_state_set_caption(s_live ? "LISTENING..." : "RECORDING...");
@@ -304,7 +312,11 @@ static bool record(bool barge_in, size_t *held, char *why, size_t cap)
         }
         n += MUSE_AUDIO_CHUNK;
         bool tick = n % (MUSE_AUDIO_CHUNK * 5) == 0;
-        if (tick && s_rec && !s_live && !gave_up && !s_held_count && muse_hatch_ready()) {
+        if (tick && s_rec && !s_live && !gave_up && !s_held_count && muse_hatch_ready()
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+            && !s_phone_turn
+#endif
+        ) {
             ESP_LOGI(TAG, "Muse in reach: streaming the note so far");
             go_live();
         }
@@ -716,6 +728,9 @@ static bool held_due(void)
 static bool finish_note(void)
 {
     bool delivered;
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE && HOLD_NOTES
+    if(s_phone_turn){bool queued=muse_pocket_relay_recording(s_rec,s_rec_n);drop_rec();s_phone_turn=false;muse_audio_chirp(0);go_idle(queued?"SENDING THROUGH IPHONE":"PHONE TRANSFER UNAVAILABLE");return false;}
+#endif
 #if HOLD_NOTES
     if (s_rec) {
         bool fed = false, interrupted = false;
@@ -760,6 +775,10 @@ static bool can_record(void)
         muse_wifi_apply();   /* retry now, not after the backoff */
     }
     bool ready = muse_hatch_ready();
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE && HOLD_NOTES
+    s_phone_turn=muse_pocket_relay_ready();
+    if(s_phone_turn){s_rec=heap_caps_malloc(MAX_FRAMES*sizeof(int16_t),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);if(!s_rec){s_phone_turn=false;go_idle("NOT ENOUGH VOICE MEMORY");return false;}return true;}
+#endif
 #if HOLD_NOTES
     muse_hatch_status_t st;
     muse_hatch_status(&st);
@@ -792,6 +811,13 @@ static void voice_task(void *arg)
     muse_audio_selftest();
     for (;;) {
         bool wake = false;
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+        if(!pending_down){size_t frames=0;int16_t *reply=muse_pocket_take_reply(&frames);if(reply){
+            set_resting(false);muse_state_set_asleep(false);muse_state_set_mode(MUSE_MODE_SPEAKING);
+            bool interrupted=false;for(size_t i=0;i<frames;i+=MUSE_AUDIO_CHUNK){if(press_waiting()){interrupted=true;break;}size_t n=frames-i<MUSE_AUDIO_CHUNK?frames-i:MUSE_AUDIO_CHUNK;if(muse_settings_speaker_on())muse_audio_write(reply+i,n);else vTaskDelay(pdMS_TO_TICKS(n*1000/MUSE_AUDIO_RATE));}
+            free(reply);pre_reset();muse_state_set_mode(MUSE_MODE_IDLE);muse_state_poke();muse_pocket_send_event(interrupted?"reply.interrupted":"reply.played",interrupted?"Playback interrupted":"Playback finished");continue;
+        }}
+#endif
         if (!pending_down) {
             muse_input_event_t ev;
             bool asleep = muse_state_asleep();

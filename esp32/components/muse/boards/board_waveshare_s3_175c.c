@@ -40,6 +40,15 @@
 #include "muse_lcd_bands.h"
 #include "muse_mem.h"
 #include "muse_pmu.h"
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+#include "muse_standby.h"
+#include "muse_state.h"
+#include "muse_tap.h"
+#include "muse_pocket.h"
+#include "muse_tilt.h"
+#include "esp_timer.h"
+#include <stdatomic.h>
+#endif
 
 static const char *TAG = "board";
 
@@ -199,6 +208,103 @@ static void display_pause(bool pause)
     }
 }
 
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+static i2c_master_dev_handle_t s_imu;
+static atomic_bool s_tapped;
+static _Atomic(TaskHandle_t) s_tap_waiter;
+static bool s_imu_active, s_imu_failed;
+static muse_tilt_t s_tilt;
+static int s_threshold=-1;
+static bool s_tap_mode;
+static void IRAM_ATTR on_tap(void *arg)
+{
+    (void)arg;
+    atomic_store(&s_tapped, true);
+    BaseType_t woken = pdFALSE;
+    TaskHandle_t waiter = atomic_load(&s_tap_waiter);
+    if (waiter) vTaskNotifyGiveFromISR(waiter, &woken);
+    if (woken) portYIELD_FROM_ISR();
+}
+static bool imu_read(uint8_t reg, uint8_t *value)
+{
+    return i2c_master_transmit_receive(s_imu, &reg, 1, value, 1, 20) == ESP_OK;
+}
+static bool imu_write(uint8_t reg, uint8_t value)
+{
+    uint8_t bytes[] = {reg, value};
+    return i2c_master_transmit(s_imu, bytes, 2, 20) == ESP_OK;
+}
+static void imu_delay(unsigned ms) { vTaskDelay(pdMS_TO_TICKS(ms ? ms : 1)); }
+static bool imu_start(bool tap,int threshold)
+{
+    if (!s_imu) {
+        i2c_device_config_t cfg = {.dev_addr_length=I2C_ADDR_BIT_LEN_7, .device_address=0x6b, .scl_speed_hz=100000};
+        if (i2c_master_bus_add_device(bsp_i2c_get_handle(), &cfg, &s_imu) != ESP_OK) return false;
+        gpio_config_t pin = {.pin_bit_mask=1ULL<<21, .mode=GPIO_MODE_INPUT, .intr_type=GPIO_INTR_POSEDGE};
+        if (gpio_config(&pin) != ESP_OK || gpio_isr_handler_add(GPIO_NUM_21, on_tap, NULL) != ESP_OK) return false;
+    }
+    const muse_tap_bus_t bus = {imu_read, imu_write, imu_delay};
+    if(tap){if(!muse_tap_configure_threshold(&bus,threshold))return false;}
+    else {uint8_t id;if(!imu_read(0,&id)||id!=5||!imu_write(0x08,0)||!imu_write(0x02,0x40)||!imu_write(0x03,0x1c)||!imu_write(0x09,0x80)||!imu_write(0x08,1))return false;}
+    s_tilt=(muse_tilt_t){0};
+    atomic_store(&s_tapped, false);
+    if(tap){gpio_intr_enable(GPIO_NUM_21);gpio_wakeup_enable(GPIO_NUM_21, GPIO_INTR_HIGH_LEVEL);}else{gpio_intr_disable(GPIO_NUM_21);gpio_wakeup_disable(GPIO_NUM_21);}
+    return true;
+}
+static void standby_pause(bool pause)
+{
+    if (pause) esp_lv_adapter_pause(-1);
+    else esp_lv_adapter_resume();
+}
+static unsigned standby_wake(void)
+{
+    /* Keep CST9217 scanning in clock mode. Do not replace its driver ISR. */
+    bool asleep = muse_state_asleep();
+    pocket_settings_t settings;muse_pocket_settings(&settings);
+    bool tap = asleep && muse_standby_tap_enabled() && !s_imu_failed;
+    bool tilt=asleep && settings.tilt && !s_imu_failed;
+    bool want=tap||tilt;
+    if(want && (!s_imu_active || s_threshold!=settings.tapThreshold || s_tap_mode!=tap)) {
+        s_threshold=settings.tapThreshold;s_tap_mode=tap;
+        s_imu_active = imu_start(tap,settings.tapThreshold);
+        if (!s_imu_active) {
+            s_imu_failed = true;
+            if (s_imu) { imu_write(0x08, 0); imu_write(0x09, 0x80); }
+            gpio_intr_disable(GPIO_NUM_21);
+            gpio_wakeup_disable(GPIO_NUM_21);
+            ESP_LOGW(TAG, "tap wake unavailable; buttons still wake");
+        }
+    } else if (!want && s_imu_active) {
+        gpio_intr_disable(GPIO_NUM_21);
+        gpio_wakeup_disable(GPIO_NUM_21);
+        imu_write(0x08, 0);
+        s_imu_active = false;
+        atomic_store(&s_tapped, false);
+    }
+    bool detected = s_imu_active && atomic_exchange(&s_tapped, false);
+    if (detected) {
+        uint8_t status;
+        if (!imu_read(0x2f, &status)) {
+            detected = false;
+            s_imu_failed = true;
+            s_imu_active = false;
+            gpio_intr_disable(GPIO_NUM_21);
+            gpio_wakeup_disable(GPIO_NUM_21);
+            imu_write(0x08, 0);
+            ESP_LOGW(TAG, "tap status unavailable; tap wake disabled until reboot");
+        } else {
+            detected = (status & 2) != 0;
+        }
+    }
+    if(tilt && s_imu_active){uint8_t reg=0x39,values[2];
+        if(i2c_master_transmit_receive(s_imu,&reg,1,values,2,20)==ESP_OK){int z=(int16_t)((uint16_t)values[0]|(uint16_t)values[1]<<8);detected |= muse_tilt_update(&s_tilt,z,(uint32_t)(esp_timer_get_time()/1000));
+        }else{s_imu_failed=true;s_imu_active=false;imu_write(0x08,0);gpio_intr_disable(GPIO_NUM_21);gpio_wakeup_disable(GPIO_NUM_21);}
+    }
+    return asleep ? (detected ? 2u : 0u) |
+        (muse_standby_enabled() && gpio_get_level(BSP_LCD_TOUCH_INT) == 0 ? 1u : 0u) : 0;
+}
+#endif
+
 static esp_err_t audio_init(esp_codec_dev_handle_t *spk, esp_codec_dev_handle_t *mic)
 {
     *spk = bsp_audio_codec_speaker_init();
@@ -234,7 +340,15 @@ static unsigned poll_buttons(void)
 
 static void wait_buttons(int timeout_ms)
 {
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    atomic_store(&s_tap_waiter, xTaskGetCurrentTaskHandle());
+    /* A pulse before we began waiting is retained even after INT1 falls. */
+    if (!atomic_load(&s_tapped))
+#endif
     muse_gpio_buttons_wait((muse_gpio_button_t *const[]){ &s_pwr, &s_boot }, 2, timeout_ms);
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    atomic_store(&s_tap_waiter, NULL);
+#endif
 }
 #endif
 
@@ -279,6 +393,10 @@ static const muse_board_t s_board = {
 #endif
     .read_power = muse_pmu_read_power,
     .power_off = muse_pmu_power_off,
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    .standby_pause = standby_pause,
+    .standby_wake = standby_wake,
+#endif
 };
 
 /* Home Link's app_main starts Muse with this board (main/main.c). */

@@ -35,6 +35,7 @@ warranties, brownouts, or bankruptcies. Proceed at your own risk!
 | | |
 |---|---|
 | [**ESP32 Device SDK**](esp32) | Connect your ESP32 board to Muse through our open source SDK. Throw in a screen to show images, add audio in and out, or wire up other sensors. |
+| [**MusePocket iPhone companion**](ios) | Manage Moe on Waveshare 1.75C: secure Bluetooth setup, standby clock, tools, cards, voice assistance, avatars and firmware updates. |
 | [**Linux Device SDK**](linux) | Turn that spare Raspberry Pi or Linux box into a Muse gadget. Hack in your own commands to let Muse handle sysadmin chores or your Home Assistant setup. |
 
 Before you flash or pair a gadget, get an

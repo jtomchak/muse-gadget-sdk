@@ -1,0 +1,6 @@
+face=idle
+wifi=off
+page=1
+tool=next
+tool=next
+tool=next

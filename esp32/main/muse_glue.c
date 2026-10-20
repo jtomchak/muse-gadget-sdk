@@ -370,6 +370,14 @@ static bool op_hatch_vm(const char *want_vm, char *vm_id, size_t id_cap, char *v
     return s_linked && app_hatch_vm_credentials(want_vm, vm_id, id_cap, vm_name, name_cap, vm_token);
 }
 
+static bool op_phone_muse_host(char *host, size_t capacity) {
+    if (!s_linked || !host || capacity < 256) return false;
+    host[0] = '\0';
+    if (config_get_str("noise_host", host, capacity) && host[0]) return true;
+    strlcpy(host, "hatch.metaaivm.com", capacity);
+    return true;
+}
+
 static bool op_talk_press(void) {
     return app_confirm_pairing_press();
 }
@@ -379,7 +387,16 @@ static void op_reset_setup(void) {
     app_reset_setup_async();
 }
 
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+#include "ota.h"
+#include "muse_pocket.h"
+static void pocket_ota_status(const ota_event_t *ev,void *user){(void)user;muse_pocket_send_event(ev->result==OTA_RESULT_APPLIED?"ota.applied":ev->result==OTA_RESULT_SKIPPED?"ota.skipped":"ota.failed",ev->detail);}
+static bool pocket_ota(const char *url,const char *sha){return ota_start_verified(url,sha,pocket_ota_status,NULL);}
+#endif
 static const muse_link_ops_t s_ops = {
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    .pocket_ota=pocket_ota,
+#endif
     .wifi_status = op_wifi_status,
     .wifi_apply = op_wifi_apply,
     .wifi_get = op_wifi_get,
@@ -391,6 +408,7 @@ static const muse_link_ops_t s_ops = {
     .ble_started = op_ble_started,
     .hatch_linked = op_hatch_linked,
     .hatch_vm = op_hatch_vm,
+    .phone_muse_host = op_phone_muse_host,
     .talk_press = op_talk_press,
     .reset_setup = op_reset_setup,
     .req_ready = noise_ctrl_is_connected,

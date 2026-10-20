@@ -47,3 +47,6 @@ bool ota_is_enabled(void);
 // immediately. `cb` may be NULL. When disabled, synchronously reports SKIPPED
 // without starting a download or task; force cannot override this setting.
 void ota_start(const char *url, bool force, ota_status_cb cb, void *user);
+
+/* Manifest checksum of the actual HTTPS response, checked before boot selection. */
+bool ota_start_verified(const char *url,const char *sha256,ota_status_cb cb,void *user);

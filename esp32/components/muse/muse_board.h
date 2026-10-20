@@ -98,6 +98,9 @@ typedef struct {
     esp_err_t (*read_power)(muse_power_t *out);
     /* Turns the board off; returns only on failure. */
     esp_err_t (*power_off)(void);
+    /* Clock standby: pause LVGL while preserving touch and panel RAM. */
+    void (*standby_pause)(bool pause);
+    unsigned (*standby_wake)(void); /* bit 0 screen tap, bit 1 IMU tap */
 } muse_board_t;
 
 /* The running board, set by muse_app_run(). */

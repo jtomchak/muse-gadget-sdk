@@ -71,6 +71,11 @@ bool muse_link_hatch_vm(const char *want_vm, char *vm_id, size_t id_cap, char *v
     return s_ops && s_ops->hatch_vm && s_ops->hatch_vm(want_vm, vm_id, id_cap, vm_name, name_cap, vm_token);
 }
 
+bool muse_link_phone_muse_host(char *host, size_t capacity)
+{
+    return s_ops && s_ops->phone_muse_host && s_ops->phone_muse_host(host, capacity);
+}
+
 bool muse_link_talk_press(void)
 {
     return s_ops && s_ops->talk_press && s_ops->talk_press();
@@ -228,3 +233,5 @@ void muse_wifi_forget(const char *ssid)
         s_ops->wifi_forget(ssid);
     }
 }
+
+bool muse_link_pocket_ota(const char *url,const char *sha256){return s_ops && s_ops->pocket_ota && s_ops->pocket_ota(url,sha256);}

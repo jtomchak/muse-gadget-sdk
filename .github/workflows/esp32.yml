@@ -84,6 +84,7 @@ jobs:
         run: |
           cmake -S esp32/simulator -B build/simulator -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
+            -DMUSE_SIM_WAVESHARE_175C=ON \
             -DMUSE_SIM_SANITIZERS=${{ matrix.sanitizers }} \
             -DMUSE_SIM_WARNINGS_AS_ERRORS=ON
 

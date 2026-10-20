@@ -36,6 +36,9 @@
 #include "muse_state.h"
 #include "muse_text.h"
 #include "muse_ui.h"
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+#include "muse_standby.h"
+#endif
 #include "muse_voice.h"
 #include "muse_wifi.h"
 
@@ -1075,6 +1078,13 @@ static void on_sleep_now(lv_event_t *e)
     muse_state_set_asleep(true);
 }
 
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+static lv_obj_t *s_clock_choice, *s_shortcut_choice, *s_tap_choice;
+static void on_clock_choice(lv_event_t *e) { (void)e; muse_standby_toggle(); }
+static void on_tap_choice(lv_event_t *e) { (void)e; muse_standby_toggle_tap(); }
+static void on_shortcut_choice(lv_event_t *e) { (void)e; muse_standby_next_shortcut(); }
+#endif
+
 static void build_sleep_page(lv_obj_t *tile)
 {
     lv_obj_t *list;
@@ -1085,7 +1095,14 @@ static void build_sleep_page(lv_obj_t *tile)
         lv_obj_set_style_text_color(s_sleep_checks[i], lv_color_hex(COLOR_ACCENT), 0);
     }
     button(list, LV_SYMBOL_EYE_CLOSE "  Sleep now", COLOR_ACCENT, on_sleep_now, NULL);
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    row(list, NULL, "Dim clock", &s_clock_choice, on_clock_choice, NULL);
+    row(list, NULL, "Tap wake (trial)", &s_tap_choice, on_tap_choice, NULL);
+    row(list, NULL, "Double BOOT", &s_shortcut_choice, on_shortcut_choice, NULL);
+    note(list, "Clock standby keeps touch scanning. Screen tap or either button wakes. Full screen-off sleep wakes by button.");
+#else
     note(list, "Tap the screen or press either button to wake.");
+#endif
 }
 
 static const char *sleep_name(int secs)
@@ -1100,6 +1117,12 @@ static const char *sleep_name(int secs)
 
 static void tick_sleep(void)
 {
+#if CONFIG_MUSE_OPTIMIZED_EXPERIENCE
+    set_text(s_clock_choice, muse_standby_enabled() ? "ON" : "OFF");
+    set_text(s_tap_choice, muse_standby_tap_enabled() ? "ON" : "OFF");
+    const char *actions[] = {"Tools", "Mute", "Phone"};
+    set_text(s_shortcut_choice, actions[muse_standby_shortcut()]);
+#endif
     int cur = muse_settings_sleep_s();
     for (int i = 0; i < SLEEP_COUNT; i++) {
         set_text(s_sleep_checks[i], SLEEP_CHOICES[i] == cur ? LV_SYMBOL_OK : "");
