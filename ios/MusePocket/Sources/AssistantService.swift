@@ -342,10 +342,17 @@ struct VoiceNote: Codable, Identifiable {
         language: Locale.current.language.languageCode?.identifier ?? "en-US")
       : AVSpeechSynthesisVoice(identifier: voiceIdentifier)
   }
+  // Speech authorization may call back on a global queue. A legacy callback
+  // created in this MainActor class must not inherit MainActor isolation.
+  nonisolated static func speechAuthorizationHandler(
+    _ continuation: CheckedContinuation<Bool, Never>
+  ) -> @Sendable (SFSpeechRecognizerAuthorizationStatus) -> Void {
+    { @Sendable status in continuation.resume(returning: status == .authorized) }
+  }
   private func transcribe(_ url: URL) async throws -> String {
     if let speechTranscriber { return try await speechTranscriber(url) }
     let authorized = await withCheckedContinuation { c in
-      SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0 == .authorized) }
+      SFSpeechRecognizer.requestAuthorization(Self.speechAuthorizationHandler(c))
     }
     guard authorized, let recognizer = SFSpeechRecognizer(locale: Locale.current),
       recognizer.isAvailable, recognizer.supportsOnDeviceRecognition
@@ -368,7 +375,7 @@ struct VoiceNote: Codable, Identifiable {
           self.finishTranscription(.failure(PocketError.rejected("iPhone transcription timed out. Retry the saved recording.")))
         }
       }
-      speechTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
+      speechTask = recognizer.recognitionTask(with: request) { @Sendable [weak self] result, error in
         let text = result?.bestTranscription.formattedString
         let final = result?.isFinal ?? false
         Task { @MainActor in
@@ -406,7 +413,7 @@ struct VoiceNote: Codable, Identifiable {
           self.finishSpeech(error: PocketError.rejected("iPhone reply speech generation timed out. Retry the saved reply."))
         }
       }
-      synthesizer.write(utterance) { [weak self] buffer in
+      synthesizer.write(utterance) { @Sendable [weak self] buffer in
         guard let buffer = buffer as? AVAudioPCMBuffer else { return }
         let rate = buffer.format.sampleRate
         let done = buffer.frameLength == 0

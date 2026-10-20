@@ -1,10 +1,23 @@
 import Foundation
 import MusePocketCore
+import Speech
 import XCTest
 
 @testable import MusePocket
 
 @MainActor final class MuseAssistantTests: XCTestCase {
+  func testSpeechAuthorizationCallbackCanRunOffMainActor() async {
+    for status in [SFSpeechRecognizerAuthorizationStatus.authorized, .denied, .restricted, .notDetermined] {
+      let authorized = await withCheckedContinuation { continuation in
+        let callback = AssistantService.speechAuthorizationHandler(continuation)
+        DispatchQueue.global(qos: .default).async {
+          XCTAssertFalse(Thread.isMainThread)
+          callback(status)
+        }
+      }
+      XCTAssertEqual(authorized, status == .authorized)
+    }
+  }
   func testMissingCredentialsRetainsNoteAndDoesNotInventReply() async throws {
     let suite = "MusePocket.voice-test." + UUID().uuidString
     let preferences = UserDefaults(suiteName: suite)!

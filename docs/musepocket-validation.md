@@ -1,5 +1,24 @@
 # MusePocket validation
 
+## 2026-10-20 Speech authorization callback crash
+
+The physical Debug 15 process terminated with SIGTRAP immediately after its
+`transcribing-on-iphone` stage. The iPhone crash report identifies
+`_dispatch_assert_queue_fail` / `_swift_task_checkIsolatedSwift` in the Speech
+authorization callback on `com.apple.root.default-qos`. A legacy completion
+created inside the MainActor service inherited actor isolation even though
+Speech invoked it on a background queue. This was not a missing BLE packet.
+
+The production permission handler now comes from a nonisolated factory returning
+an explicitly Sendable closure that only resumes its continuation. Recognition
+and speech-render callbacks are also explicitly Sendable and copy plain values
+before their MainActor model updates. Actor checks remain enabled. All six
+native voice tests passed, including invoking the production permission handler
+on a global queue for authorized/denied/restricted/not-determined results. Prior
+transcription fixture tests had injected recognition and missed this boundary.
+Debug 0.1.0 (16) built, installed and launched under personal team NSLC4354J7; physical
+recognition and live text-request/reply acceptance still require a retry.
+
 ## 2026-10-20 iPhone transcription and text requests
 
 At the user's request, Muse-mode processing now transcribes the saved recording
