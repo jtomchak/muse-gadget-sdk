@@ -1,5 +1,32 @@
 # MusePocket validation
 
+## 2026-10-20 iPhone transcription and text requests
+
+At the user's request, Muse-mode processing now transcribes the saved recording
+on iPhone with the existing on-device Speech recognizer and sends only its text
+to Muse. The transcript is persisted before network activity, displayed as
+**You said**, and reused for network retries. Empty recognition retains the
+recording and produces an explicit error. Credentials are checked before asking
+for Speech permission. Saved replies still bypass transcription and network
+requests when retrying Bluetooth delivery.
+
+Five native MuseAssistantTests pass against the independent SDK fixture. The
+fixture validates the exact text request and returns its text-specific reply;
+these tests cover native speech rendering/cached delivery, saved transcript reuse
+after network failure, empty transcription without a Muse request, missing
+credentials, and paired-gadget authorization. The tests inject transcript text;
+they do not claim live Apple Speech recognition or a real Muse cloud reply.
+All 22 optimized core tests also passed, including 12 SDK WebSocket scenarios.
+
+Processing status now distinguishes local transcription, Muse text submission,
+reply speech generation and Bluetooth delivery. Opt-in logs contain stage names
+only, not transcripts or audio. Cancellation includes transcription and native
+reply speech; operation identities reject callbacks from earlier cancelled
+recognition/rendering tasks. On-device recognition has a 45-second deadline and
+reply speech rendering a 30-second deadline. Debug 0.1.0 (15) was built for the
+personal team, installed and launched on MeowSuperMax. Live recognition and
+text-request acceptance remain pending.
+
 ## 2026-10-20 authorization from the paired gadget
 
 Added explicit **Use Moe’s Muse connection** in Assistant. Its protected

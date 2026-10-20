@@ -58,6 +58,79 @@ import XCTest
     XCTAssertEqual(assistant.museVM, "paired-vm")
     XCTAssertEqual(PocketKeychain.read(PocketKeychain.museAccount(host)), "fixture-token")
   }
+  func testEmptyTranscriptionKeepsRecordingAndDoesNotRequestMuse() async throws {
+    let suite = "MusePocket.empty-transcript-test." + UUID().uuidString
+    let preferences = UserDefaults(suiteName: suite)!
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+    defer {
+      preferences.removePersistentDomain(forName: suite)
+      try? FileManager.default.removeItem(at: directory)
+    }
+    let client = MuseVoiceClient(fetch: { _ in
+      XCTFail("An empty transcript must not reach Muse")
+      throw PocketError.malformed
+    })
+    let assistant = AssistantService(
+      preferences: preferences, inboxDirectory: directory, museClient: client,
+      museCredential: { _ in "fixture-account-token" }, speechTranscriber: { _ in "  \n " })
+    assistant.deliver = { _, _ in XCTFail("Empty speech must not produce a reply") }
+    await assistant.receive([Int16](repeating: 120, count: 4800))
+    if let note = assistant.inbox.first { await assistant.process(note) }
+    XCTAssertEqual(assistant.inbox.count, 1)
+    XCTAssertTrue(assistant.status.contains("No speech was recognized"))
+    XCTAssertFalse(assistant.busy)
+    XCTAssertTrue(assistant.lastTranscript.isEmpty)
+    XCTAssertNil(assistant.inbox.first?.transcript)
+    let note = try XCTUnwrap(assistant.inbox.first)
+    XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent(note.filename).path))
+  }
+  func testNetworkRetryReusesSavedTranscript() async throws {
+    guard let port = ProcessInfo.processInfo.environment["MUSE_TEST_PORT"] else {
+      throw XCTSkip("Run through ios/tools/test-muse-relay.sh")
+    }
+    let suite = "MusePocket.transcript-retry-test." + UUID().uuidString
+    let preferences = UserDefaults(suiteName: suite)!
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+    defer {
+      preferences.removePersistentDomain(forName: suite)
+      try? FileManager.default.removeItem(at: directory)
+    }
+    let requests = MuseRequestCounter()
+    var transcriptions = 0
+    let client = MuseVoiceClient(fetch: { _ in
+      await requests.increment()
+      if await requests.count == 1 { throw PocketError.disconnected }
+      return Data(#"{"vm_list":[{"vm_id":"fixture","vm_auth_token":"fixture-vm-token"}]}"#.utf8)
+    }, socketFactory: { request in
+      var request = request
+      request.url = URL(string: "ws://127.0.0.1:\(port)/voice")!
+      return MuseWebSocket(request: request)
+    }, deadline: .seconds(15), settle: .milliseconds(80))
+    let assistant = AssistantService(
+      preferences: preferences, inboxDirectory: directory, museClient: client,
+      museCredential: { _ in "fixture-account-token" }, speechTranscriber: { _ in
+        transcriptions += 1
+        return "Hello Muse"
+      })
+    var deliveries = 0
+    assistant.deliver = { text, _ in
+      deliveries += 1
+      XCTAssertEqual(text, "Muse fixture received the text.")
+    }
+    await assistant.receive([Int16](repeating: 120, count: 4800))
+    if await requests.count == 0, let note = assistant.inbox.first { await assistant.process(note) }
+    XCTAssertEqual(assistant.inbox.first?.transcript, "Hello Muse")
+    XCTAssertNil(assistant.inbox.first?.reply)
+    XCTAssertEqual(transcriptions, 1)
+    XCTAssertFalse(assistant.busy)
+    let note = try XCTUnwrap(assistant.inbox.first)
+    await assistant.process(note)
+    XCTAssertEqual(transcriptions, 1, "Network retry should use the saved transcript")
+    XCTAssertEqual(deliveries, 1)
+    XCTAssertTrue(assistant.inbox.isEmpty)
+    let count = await requests.count
+    XCTAssertEqual(count, 2)
+  }
   func testMuseInboxNativeSpeechAndCachedDeliveryRetry() async throws {
     guard let port = ProcessInfo.processInfo.environment["MUSE_TEST_PORT"] else {
       throw XCTSkip("Run through ios/tools/test-muse-relay.sh for independent SDK integration")
@@ -67,6 +140,7 @@ import XCTest
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
     let host = UUID().uuidString.lowercased() + ".fixture.invalid"
     let requests = MuseRequestCounter()
+    var transcriptions = 0
     let client = MuseVoiceClient(
       fetch: { _ in
         await requests.increment()
@@ -79,7 +153,11 @@ import XCTest
       }, deadline: .seconds(15), settle: .milliseconds(80))
     let assistant = AssistantService(
       preferences: preferences, inboxDirectory: directory, museClient: client,
-      museCredential: { _ in "fixture-account-token" })
+      museCredential: { _ in "fixture-account-token" }, speechTranscriber: { url in
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        transcriptions += 1
+        return "Hello Muse"
+      })
     assistant.museHost = host
     assistant.savePreferences()
     defer {
@@ -89,7 +167,7 @@ import XCTest
     var deliveries = 0
     assistant.deliver = { reply, pcm in
       deliveries += 1
-      XCTAssertEqual(reply, "Muse fixture received the voice note.")
+      XCTAssertEqual(reply, "Muse fixture received the text.")
       XCTAssertGreaterThan(pcm?.count ?? 0, 0)
       XCTAssertLessThanOrEqual(pcm?.count ?? Int.max, 240000)
       if deliveries == 1 { throw PocketError.disconnected }
@@ -105,7 +183,10 @@ import XCTest
     XCTAssertEqual(deliveries, 1)
     XCTAssertEqual(assistant.inbox.count, 1)
     let note = try XCTUnwrap(assistant.inbox.first)
-    XCTAssertEqual(note.reply, "Muse fixture received the voice note.")
+    XCTAssertEqual(note.reply, "Muse fixture received the text.")
+    XCTAssertEqual(note.transcript, "Hello Muse")
+    XCTAssertEqual(assistant.lastTranscript, "Hello Muse")
+    XCTAssertEqual(transcriptions, 1)
     XCTAssertTrue(
       FileManager.default.fileExists(atPath: directory.appendingPathComponent(note.filename).path))
     let resumed = AssistantService(preferences: preferences, inboxDirectory: directory)

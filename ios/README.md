@@ -132,9 +132,15 @@ Moe's Wi-Fi and use that action again; renewal is not automatic over cellular.
 
 Keep MusePocket open, connect Moe securely over BLE, disable Moe's Wi-Fi for the
 acceptance test, and hold its microphone button. After release, the phone receives
-up to 15 seconds of ADPCM, saves a protected WAV and connects over its own internet
-connection to `/v1/noise?vm_id=...`. The bearer credential stays in the header, not
-the URL. Apple CryptoKit supplies X25519, SHA256, HKDF and AES-GCM to the same C++
+up to 15 seconds of ADPCM and saves a protected WAV. MusePocket transcribes it
+with Apple's on-device Speech recognizer, persists and displays the transcript,
+and sends a text-only request over its own internet connection to
+`/v1/noise?vm_id=...`. Muse mode does not upload the recording. Approve Speech
+Recognition permission on the first request; the selected language must support
+on-device recognition. Empty/unavailable transcription retains the recording and
+shows an error. Network retries reuse the saved transcript; completed replies
+are still cached before playback. The bearer credential stays in the header,
+not the URL. Apple CryptoKit supplies X25519, SHA256, HKDF and AES-GCM to the same C++
 `ClientSession` compiled by firmware. No separate relay server is required.
 
 The phone establishes `/chat/subscribe`, then sends the SDK voice-note attachment

@@ -25,7 +25,10 @@ struct VoiceNote: Codable, Identifiable {
   var voiceIdentifier = ""
   var voiceRate: Double = 0.5
   var lastReply = ""
+  private(set) var lastTranscript = ""
   private(set) var inbox: [VoiceNote] = []
+  @ObservationIgnored private var speechOperation: UUID?
+  @ObservationIgnored private let speechTranscriber: ((URL) async throws -> String)?
   @ObservationIgnored private var speechTask: SFSpeechRecognitionTask?
   @ObservationIgnored private var recognizer: SFSpeechRecognizer?
   @ObservationIgnored private var speechContinuation: CheckedContinuation<String, Error>?
@@ -33,6 +36,7 @@ struct VoiceNote: Codable, Identifiable {
   @ObservationIgnored private let synthesizer = AVSpeechSynthesizer()
   @ObservationIgnored private var audioSamples: [Float] = []
   @ObservationIgnored private var sampleRate: Double = 22050
+  @ObservationIgnored private var audioOperation: UUID?
   @ObservationIgnored private var audioContinuation: CheckedContinuation<[Int16], Error>?
   @ObservationIgnored private var audioDeadline: Task<Void, Never>?
   @ObservationIgnored private let preferences: UserDefaults
@@ -44,8 +48,10 @@ struct VoiceNote: Codable, Identifiable {
   @ObservationIgnored var deliver: ((String, [Int16]?) async throws -> Void)?
   init(
     preferences: UserDefaults = .standard, inboxDirectory: URL? = nil,
-    museClient: MuseVoiceClient? = nil, museCredential: ((String) -> String?)? = nil
+    museClient: MuseVoiceClient? = nil, museCredential: ((String) -> String?)? = nil,
+    speechTranscriber: ((URL) async throws -> String)? = nil
   ) {
+    self.speechTranscriber = speechTranscriber
     self.preferences = preferences
     self.inboxDirectory = inboxDirectory
     self.museClient = museClient
@@ -131,18 +137,16 @@ struct VoiceNote: Codable, Identifiable {
         status = "Delivering the saved reply to Moe…"
         reply = savedReply
       } else if engine == "muse" {
-        status = "Sending your voice note to Muse through iPhone…"
-        reply = try await muse(text: nil, audio: Data(contentsOf: url))
+        _ = try configuredMuseConnection()
+        let text = try await transcript(for: note, url: url)
+        status = "Sending your transcript to Muse through iPhone…"
+        diagnosticStage("sending-transcript")
+        reply = try await muse(text: text, audio: nil)
       } else if engine == "https" {
         status = "Sending the note to your configured relay…"
         reply = try await remote(text: nil, audio: Data(contentsOf: url))
       } else {
-        status = "Transcribing on iPhone…"
-        let text = try await transcribe(url)
-        if let i = inbox.firstIndex(where: { $0.id == note.id }) {
-          inbox[i].transcript = text
-          saveInbox()
-        }
+        let text = try await transcript(for: note, url: url)
         reply = try await local(text)
       }
       if let i = inbox.firstIndex(where: { $0.id == note.id }) {
@@ -152,8 +156,36 @@ struct VoiceNote: Codable, Identifiable {
       try await finish(reply)
       delete(note)
     } catch {
+      diagnosticStage("processing-failed")
       reportFailure(error.localizedDescription + " The note remains in your inbox.")
     }
+  }
+  private func diagnosticStage(_ stage: String) {
+    guard ProcessInfo.processInfo.environment["MUSE_BLE_DIAGNOSTICS"] == "1" else { return }
+    print("[MusePocket voice] " + stage)
+    fflush(nil)
+  }
+  private func transcript(for note: VoiceNote, url: URL) async throws -> String {
+    if let cached = inbox.first(where: { $0.id == note.id })?.transcript,
+      !cached.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    {
+      lastTranscript = cached
+      diagnosticStage("using-saved-transcript")
+      return cached
+    }
+    status = "Transcribing the recording on iPhone…"
+    diagnosticStage("transcribing-on-iphone")
+    let text = try await transcribe(url).trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !text.isEmpty else {
+      throw PocketError.rejected("No speech was recognized. Try recording again closer to Moe.")
+    }
+    guard text.utf8.count <= 16384 else { throw PocketError.tooLarge }
+    lastTranscript = text
+    if let i = inbox.firstIndex(where: { $0.id == note.id }) {
+      inbox[i].transcript = text
+      saveInbox()
+    }
+    return text
   }
   func ask(_ text: String) async {
     guard !busy, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
@@ -220,7 +252,7 @@ struct VoiceNote: Codable, Identifiable {
     PocketKeychain.delete(PocketKeychain.museAccount(museHost))
     status = "Muse voice credentials removed from iPhone"
   }
-  private func muse(text: String?, audio: Data?) async throws -> String {
+  private func configuredMuseConnection() throws -> MuseConnection {
     let credential =
       museCredential?(museHost) ?? PocketKeychain.read(PocketKeychain.museAccount(museHost))
     guard let token = credential else {
@@ -228,8 +260,11 @@ struct VoiceNote: Codable, Identifiable {
         "Configure Muse voice credentials in Assistant first. A gadget SDK token cannot authorize voice requests."
       )
     }
-    let connection = try MuseConnection(
+    return try MuseConnection(
       host: museHost, vm: museVM, token: token, directVMToken: museDirectVMToken)
+  }
+  private func muse(text: String?, audio: Data?) async throws -> String {
+    let connection = try configuredMuseConnection()
     let client =
       museClient
       ?? MuseVoiceClient(fetch: { token in
@@ -249,7 +284,11 @@ struct VoiceNote: Codable, Identifiable {
       task.cancel()
     }
   }
-  func cancelMuseRequest() { activeMuseTask?.cancel() }
+  func cancelMuseRequest() {
+    activeMuseTask?.cancel()
+    finishTranscription(.failure(CancellationError()))
+    finishSpeech(error: CancellationError())
+  }
   private func remote(text: String?, audio: Data?) async throws -> String {
     guard let url = URL(string: endpoint) else {
       throw PocketError.rejected("Configure your HTTPS relay URL first.")
@@ -283,8 +322,13 @@ struct VoiceNote: Codable, Identifiable {
     lastReply = reply
     guard let deliver else { throw PocketError.disconnected }
     let trimmed = reply.pocketPrefix(maxBytes: 360)
+    status = "Preparing Moe’s spoken reply…"
+    diagnosticStage("rendering-reply-speech")
     let pcm = try await renderSpeech(trimmed)
+    status = "Sending the reply to Moe over Bluetooth…"
+    diagnosticStage("delivering-reply")
     try await deliver(trimmed, pcm)
+    diagnosticStage("reply-queued")
     status = "Reply queued on Moe"
     if speakOnPhone {
       let utterance = AVSpeechUtterance(string: reply)
@@ -299,6 +343,7 @@ struct VoiceNote: Codable, Identifiable {
       : AVSpeechSynthesisVoice(identifier: voiceIdentifier)
   }
   private func transcribe(_ url: URL) async throws -> String {
+    if let speechTranscriber { return try await speechTranscriber(url) }
     let authorized = await withCheckedContinuation { c in
       SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0 == .authorized) }
     }
@@ -313,16 +358,21 @@ struct VoiceNote: Codable, Identifiable {
     let request = SFSpeechURLRecognitionRequest(url: url)
     request.requiresOnDeviceRecognition = true
     request.shouldReportPartialResults = false
+    let operation = UUID()
+    speechOperation = operation
     return try await withCheckedThrowingContinuation { c in
       speechContinuation = c
       speechDeadline = Task {
         try? await Task.sleep(for: .seconds(45))
-        if !Task.isCancelled { self.finishTranscription(.failure(PocketError.timeout)) }
+        if !Task.isCancelled, self.speechOperation == operation {
+          self.finishTranscription(.failure(PocketError.rejected("iPhone transcription timed out. Retry the saved recording.")))
+        }
       }
       speechTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
         let text = result?.bestTranscription.formattedString
         let final = result?.isFinal ?? false
         Task { @MainActor in
+          guard self?.speechOperation == operation else { return }
           if let error {
             self?.finishTranscription(.failure(error))
           } else if final, let text {
@@ -335,6 +385,7 @@ struct VoiceNote: Codable, Identifiable {
   private func finishTranscription(_ result: Result<String, Error>) {
     guard let c = speechContinuation else { return }
     speechContinuation = nil
+    speechOperation = nil
     speechDeadline?.cancel()
     speechTask?.cancel()
     speechTask = nil
@@ -345,11 +396,15 @@ struct VoiceNote: Codable, Identifiable {
     let utterance = AVSpeechUtterance(string: text)
     utterance.voice = selectedVoice
     utterance.rate = Float(voiceRate)
+    let operation = UUID()
+    audioOperation = operation
     return try await withCheckedThrowingContinuation { c in
       audioContinuation = c
       audioDeadline = Task {
         try? await Task.sleep(for: .seconds(30))
-        if !Task.isCancelled { self.finishSpeech(error: PocketError.timeout) }
+        if !Task.isCancelled, self.audioOperation == operation {
+          self.finishSpeech(error: PocketError.rejected("iPhone reply speech generation timed out. Retry the saved reply."))
+        }
       }
       synthesizer.write(utterance) { [weak self] buffer in
         guard let buffer = buffer as? AVAudioPCMBuffer else { return }
@@ -364,7 +419,7 @@ struct VoiceNote: Codable, Identifiable {
           }
         }
         Task { @MainActor in
-          guard let self, self.audioContinuation != nil else { return }
+          guard let self, self.audioContinuation != nil, self.audioOperation == operation else { return }
           self.sampleRate = rate
           let available = max(0, Int(rate * 15) - self.audioSamples.count)
           self.audioSamples.append(contentsOf: samples.prefix(available))
@@ -376,6 +431,7 @@ struct VoiceNote: Codable, Identifiable {
   private func finishSpeech(error: Error?) {
     guard let c = audioContinuation else { return }
     audioContinuation = nil
+    audioOperation = nil
     audioDeadline?.cancel()
     if let error {
       synthesizer.stopSpeaking(at: .immediate)

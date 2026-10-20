@@ -461,6 +461,10 @@ struct AssistantView: View {
           Button("Cancel Muse request", role: .cancel) { assistant.cancelMuseRequest() }
         }
         Text(assistant.status).font(.caption).foregroundStyle(.secondary)
+        if !assistant.lastTranscript.isEmpty {
+          LabeledContent("You said") { Text(assistant.lastTranscript).textSelection(.enabled) }
+            .accessibilityIdentifier("assistant.transcript")
+        }
         if !assistant.lastReply.isEmpty { Text(assistant.lastReply).textSelection(.enabled) }
       }
       Section("Voice inbox") {
@@ -734,7 +738,7 @@ private struct AssistantConnectionForm: View {
         }
         Button("Remove saved Muse token", role: .destructive) { assistant.clearMuseToken() }
         Text(
-          "Moe sends voice over Bluetooth; this iPhone connects directly to your Muse using cellular data or Wi-Fi. Muse transcribes and replies; iPhone speaks the reply back to Moe. Use credentials from Muse SDK setup, not the gadget registration SDK token. Keep MusePocket open while testing."
+          "Moe sends voice over Bluetooth; this iPhone connects directly to your Muse using cellular data or Wi-Fi. iPhone transcribes locally and sends text to Muse, then speaks the reply back to Moe. Use credentials from Muse SDK setup, not the gadget registration SDK token. Keep MusePocket open while testing."
         )
         .font(.footnote).foregroundStyle(.secondary)
       } else if assistant.engine == "https" {
