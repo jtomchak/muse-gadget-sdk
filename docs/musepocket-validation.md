@@ -1,5 +1,30 @@
 # MusePocket validation
 
+## 2026-10-20 authorization from the paired gadget
+
+Added explicit **Use Moe’s Muse connection** in Assistant. Its protected
+`muse.authorize` RPC uses the SDK's existing paired-device VM lookup/refresh,
+selects Moe's preferred/default VM, and returns only that VM credential with
+the paired Noise host. Device account/refresh credentials remain on Moe. The
+connection must still be secure and have the same generation after the lookup;
+serialized buffers and temporary token copies are cleared. No token is added to
+snapshots or diagnostics. Native validation precedes host-scoped Keychain writes
+and preference changes. The existing voice inbox is retained for retry.
+
+The production-body C regression covers missing pairing/Wi-Fi, insecure/stale
+connections, lookup failure, absent VM/token, disconnect/generation changes
+during lookup, explicit RPC dispatch, secret clearing, and a normal snapshot
+without credentials under ASan/UBSan. All three native MuseAssistantTests passed,
+including exact VM/host Keychain handoff, invalid handoff leaving prior state
+intact, missing-credential reporting, and SDK fixture voice/cached retry.
+All 232 firmware host tests passed with no skips. The Waveshare build and
+app-only flash passed with hash verification and a healthy post-flash heartbeat.
+Debug 0.1.0 (14) was installed/launched on MeowSuperMax under personal team
+NSLC4354J7. Physical authorization and a subsequent live Muse
+voice reply with board Wi-Fi off remain pending. This flow requires temporary
+board Wi-Fi for authorization and later renewal; it is not an automatic,
+permanent cellular login. No additional official Muse pairing is required.
+
 ## 2026-10-20 received voice and authentication blocker
 
 After the Base64 fix, the physical iPhone capture received all fragments and

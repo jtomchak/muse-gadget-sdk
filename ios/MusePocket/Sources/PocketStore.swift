@@ -259,6 +259,13 @@ import Observation
         ] : [try await phoneCards.weather(latitude: latitude, longitude: longitude)]
     }
   }
+  func authorizeMuseFromMoe() async {
+    await run("Muse connection authorized on iPhone") {
+      guard !preview else { throw PocketError.rejected("Connect a real Moe to authorize Muse voice.") }
+      let result = try await request("muse.authorize")
+      try assistant.useMoeAuthorization(result)
+    }
+  }
   func configureMuse(host: String, vm: String, token: String) async {
     await run("Muse connection settings sent") {
       guard !host.isEmpty, host.utf8.count <= 255, vm.utf8.count <= 128 else {

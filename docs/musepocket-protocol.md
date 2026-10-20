@@ -64,6 +64,7 @@ status), `timer`, and `diagnostics`. Credentials themselves are never included.
 | Method | Parameters / result |
 |---|---|
 | `hello`, `status`, `diagnostics` | full snapshot |
+| `muse.authorize` | explicit user action; `{host,vm,token}` for the paired/default VM; authenticated current connection, official pairing and temporary board Wi-Fi required |
 | `settings.set` | complete `PocketSettings`; typed values, not a patch |
 | `preset.put` / `preset.delete` | preset DTO / `{id}` |
 | `card.put` / `card.delete` / `card.show` | card DTO / `{id}` |
@@ -168,3 +169,22 @@ With a signed MusePocket install and the Waveshare connected, check:
 
 No physical device, current consumption, iPhone background lifecycle or panel
 wear result is implied by the software tests.
+
+## Paired Moe authorization
+
+MusePocket can explicitly request `muse.authorize` from its Assistant tab. The
+firmware uses the existing SDK paired-device VM lookup and token refresh path,
+with the SDK's preferred/default VM selection. It returns that VM's ID and token
+with the paired Noise host, never the device access/refresh pair or SDK token.
+The secure connection generation is checked before and after the network lookup
+and before each response fragment. A disconnect cancels delivery. No credential
+is added to snapshots, diagnostic exports, or packet logs. Temporary firmware
+buffers are cleared after use.
+
+The phone validates the complete handoff before saving the token to the
+host-scoped Keychain and selecting direct-VM authentication. The saved voice
+inbox is preserved. Board Wi-Fi is needed for authorization and renewal; after
+a successful handoff, voice can use BLE and phone internet with board Wi-Fi off.
+This is a VM credential with service-controlled validity, not a permanent login:
+if the service refuses it, enable board Wi-Fi and authorize again. The native
+authorization RPC has a 90-second deadline to accommodate SDK network retries.

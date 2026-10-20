@@ -26,6 +26,38 @@ import XCTest
     XCTAssertEqual(reportedFailure, assistant.status)
     XCTAssertTrue(reportedFailure?.contains("note remains") == true)
   }
+  func testMoeAuthorizationUsesExactVMAndRejectsInvalidHandoff() throws {
+    let suite = "MusePocket.authorization-test." + UUID().uuidString
+    let preferences = UserDefaults(suiteName: suite)!
+    let host = UUID().uuidString.lowercased() + ".fixture.invalid"
+    let assistant = AssistantService(preferences: preferences)
+    defer {
+      preferences.removePersistentDomain(forName: suite)
+      PocketKeychain.delete(PocketKeychain.museAccount(host))
+    }
+    XCTAssertThrowsError(try assistant.useMoeAuthorization(.object([
+      "host": .string(host), "vm": .string(""), "token": .string("fixture-token"),
+    ])))
+    XCTAssertNil(PocketKeychain.read(PocketKeychain.museAccount(host)))
+    try assistant.useMoeAuthorization(.object([
+      "host": .string(host), "vm": .string("paired-vm"), "token": .string("fixture-token"),
+    ]))
+    XCTAssertEqual(assistant.museHost, host)
+    XCTAssertEqual(assistant.museVM, "paired-vm")
+    XCTAssertTrue(assistant.museDirectVMToken)
+    XCTAssertEqual(assistant.engine, "muse")
+    XCTAssertEqual(PocketKeychain.read(PocketKeychain.museAccount(host)), "fixture-token")
+    let restored = AssistantService(preferences: preferences)
+    XCTAssertEqual(restored.museVM, "paired-vm")
+    XCTAssertTrue(restored.museDirectVMToken)
+    XCTAssertThrowsError(try assistant.useMoeAuthorization(.object([
+      "host": .string("https://invalid/path"), "vm": .string("other"),
+      "token": .string("different-token"),
+    ])))
+    XCTAssertEqual(assistant.museHost, host)
+    XCTAssertEqual(assistant.museVM, "paired-vm")
+    XCTAssertEqual(PocketKeychain.read(PocketKeychain.museAccount(host)), "fixture-token")
+  }
   func testMuseInboxNativeSpeechAndCachedDeliveryRetry() async throws {
     guard let port = ProcessInfo.processInfo.environment["MUSE_TEST_PORT"] else {
       throw XCTSkip("Run through ios/tools/test-muse-relay.sh for independent SDK integration")

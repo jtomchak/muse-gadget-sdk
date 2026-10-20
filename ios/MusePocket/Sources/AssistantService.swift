@@ -203,6 +203,19 @@ struct VoiceNote: Codable, Identifiable {
     museHost = host
     savePreferences()
   }
+  func useMoeAuthorization(_ result: JSONValue) throws {
+    guard let host = result["host"].string, let vm = result["vm"].string,
+      let token = result["token"].string
+    else { throw PocketError.malformed }
+    let connection = try MuseConnection(host: host, vm: vm, token: token, directVMToken: true)
+    try PocketKeychain.save(connection.token, name: PocketKeychain.museAccount(connection.host))
+    museHost = connection.host
+    museVM = connection.vm
+    museDirectVMToken = true
+    engine = "muse"
+    savePreferences()
+    status = "Muse connection authorized by Moe. You can turn Moe’s Wi-Fi off and process your saved note."
+  }
   func clearMuseToken() {
     PocketKeychain.delete(PocketKeychain.museAccount(museHost))
     status = "Muse voice credentials removed from iPhone"

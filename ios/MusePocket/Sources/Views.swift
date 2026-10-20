@@ -711,6 +711,12 @@ private struct AssistantConnectionForm: View {
     @Bindable var assistant = store.assistant
     Group {
       if assistant.engine == "muse" {
+        Button("Use Moe’s Muse connection", systemImage: "link") {
+          Task { await store.authorizeMuseFromMoe() }
+        }.disabled(!store.ready || store.busy || assistant.busy)
+          .accessibilityIdentifier("assistant.authorizeMoe")
+        Text("Already paired in Muse? Connect Moe to Wi-Fi briefly and use this button. Voice can then use Bluetooth and your iPhone’s internet. If authorization expires, connect Moe to Wi-Fi and use this button again.")
+          .font(.footnote).foregroundStyle(.secondary)
         TextField("Muse host", text: $assistant.museHost)
           .textInputAutocapitalization(.never).autocorrectionDisabled()
         TextField("VM ID (optional for account token)", text: $assistant.museVM)

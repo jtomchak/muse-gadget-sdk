@@ -123,6 +123,13 @@ of the default. For a VM-specific auth token, enable **Use a direct VM token** a
 enter its VM ID; discovery is skipped. There is no silent auth fallback or login
 screen that extracts credentials from the official Muse app.
 
+For Moe already paired in the official Muse app, connect Moe to Wi-Fi briefly,
+then select **Assistant → Use Moe’s Muse connection**. This uses the SDK's
+existing VM lookup through the gadget and stores only the selected VM credential
+in the iPhone Keychain. It does not copy account/refresh credentials. No manual
+token is needed for this path. If the credential expires or is revoked, enable
+Moe's Wi-Fi and use that action again; renewal is not automatic over cellular.
+
 Keep MusePocket open, connect Moe securely over BLE, disable Moe's Wi-Fi for the
 acceptance test, and hold its microphone button. After release, the phone receives
 up to 15 seconds of ADPCM, saves a protected WAV and connects over its own internet

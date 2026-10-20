@@ -12,6 +12,7 @@
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "mbedtls/base64.h"
+#include "mbedtls/platform_util.h"
 #include "muse_adpcm.h"
 #include "muse_ble.h"
 #include "muse_board.h"
@@ -23,6 +24,7 @@
 #include "muse_tools_ui.h"
 #include "muse_ui.h"
 #include "muse_voice.h"
+#include "muse_wifi.h"
 #include "nvs.h"
 #include "pocket_frame.h"
 #include <math.h>
@@ -165,6 +167,7 @@ static bool send_json(uint8_t kind, const cJSON *json, uint32_t generation)
         else
             vTaskDelay(pdMS_TO_TICKS(3));
     }
+    mbedtls_platform_zeroize(text, size);
     cJSON_free(text);
     return ok;
 }
@@ -482,6 +485,48 @@ static const char *apply(int action, pocket_model_t *candidate, const cJSON *par
     }
     return action == POCKET_QUERY ? NULL : "Unsupported device action";
 }
+/* Only an explicit RPC on the current authenticated companion connection may
+ * request a VM-scoped credential. Never expose the device access/refresh pair. */
+static cJSON *authorize_phone(uint32_t generation, const char **failure)
+{
+    *failure = "Reconnect Moe securely before authorizing MusePocket";
+    if (!atomic_load(&s_secure) || generation != atomic_load(&s_generation))
+        return NULL;
+    if (!muse_link_hatch_linked()) {
+        *failure = "Pair Moe with the official Muse app first";
+        return NULL;
+    }
+    if (!muse_wifi_connected()) {
+        *failure = "Connect Moe to Wi-Fi briefly, then use Moe's Muse connection again";
+        return NULL;
+    }
+    char vm[129] = {0}, name[129] = {0}, host[256] = {0};
+    char *token = NULL;
+    if (!muse_link_phone_muse_host(host, sizeof(host))) {
+        *failure = "Moe's paired Muse host is unavailable";
+        return NULL;
+    }
+    bool found = muse_link_hatch_vm("", vm, sizeof(vm), name, sizeof(name), &token);
+    cJSON *result = NULL;
+    *failure = "Moe could not obtain Muse authorization; check its Muse connection and retry";
+    if (found && vm[0] && token && *token && atomic_load(&s_secure) &&
+        generation == atomic_load(&s_generation)) {
+        result = cJSON_CreateObject();
+        if (result && (!cJSON_AddStringToObject(result, "host", host) ||
+                       !cJSON_AddStringToObject(result, "vm", vm) ||
+                       !cJSON_AddStringToObject(result, "token", token))) {
+            cJSON_Delete(result);
+            result = NULL;
+        }
+        if (result)
+            *failure = NULL;
+    }
+    if (token) {
+        mbedtls_platform_zeroize(token, strlen(token));
+        free(token);
+    }
+    return result;
+}
 static void command(void)
 {
     if (!pocket_json_depth_valid(s_rx->data, s_rx->size))
@@ -503,11 +548,15 @@ static void command(void)
         return;
     }
     uint32_t generation = atomic_load(&s_generation);
-    pocket_model_t *candidate = psram(sizeof(*candidate));
+    bool authorizing = !strcmp(method, "muse.authorize");
+    cJSON *authorization = NULL;
+    pocket_model_t *candidate = authorizing ? NULL : psram(sizeof(*candidate));
     char error[128] = {0};
     const char *failure = "Not enough device memory";
     int action = -1;
-    if (candidate) {
+    if (authorizing)
+        authorization = authorize_phone(generation, &failure);
+    else if (candidate) {
         xSemaphoreTake(s_lock, portMAX_DELAY);
         *candidate = *s_model;
         xSemaphoreGive(s_lock);
@@ -524,8 +573,9 @@ static void command(void)
     if (failure)
         cJSON_AddStringToObject(response, "error", failure);
     else {
-        cJSON *result = action == POCKET_QUERY ? snapshot() : cJSON_CreateObject();
-        if (action != POCKET_QUERY)
+        cJSON *result = authorizing ? authorization :
+                        action == POCKET_QUERY ? snapshot() : cJSON_CreateObject();
+        if (!authorizing && action != POCKET_QUERY)
             cJSON_AddBoolToObject(result, "accepted", true);
         if (!result) {
             cJSON_ReplaceItemInObject(response, "ok", cJSON_CreateBool(false));
@@ -534,6 +584,11 @@ static void command(void)
             cJSON_AddItemToObject(response, "result", result);
     }
     send_json(POCKET_RESPONSE, response, generation);
+    if (authorization) {
+        cJSON *secret = cJSON_GetObjectItemCaseSensitive(authorization, "token");
+        if (cJSON_IsString(secret))
+            mbedtls_platform_zeroize(secret->valuestring, strlen(secret->valuestring));
+    }
     cJSON_Delete(response);
     cJSON_Delete(request);
 }

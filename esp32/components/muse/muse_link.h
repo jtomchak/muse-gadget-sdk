@@ -59,6 +59,7 @@ typedef struct {
     /* Fills the VM whose id is want_vm (empty: Link's preferred VM). *vm_token is heap. */
     bool (*hatch_vm)(const char *want_vm, char *vm_id, size_t id_cap, char *vm_name, size_t name_cap,
                      char **vm_token);
+    bool (*phone_muse_host)(char *host, size_t capacity); /* paired Noise host, no credentials */
     bool (*talk_press)(void);                     /* true: Link used the press (pairing confirm) */
     void (*reset_setup)(void);                    /* forget Link setup and reboot */
     /* Requests to the VM on Link's own Noise session, for boards without PSRAM for their own. */
@@ -84,6 +85,7 @@ const char *muse_link_state_name(muse_link_state_t state);
 bool muse_link_hatch_linked(void);
 bool muse_link_hatch_vm(const char *want_vm, char *vm_id, size_t id_cap, char *vm_name, size_t name_cap,
                         char **vm_token);
+bool muse_link_phone_muse_host(char *host, size_t capacity);
 bool muse_link_talk_press(void);
 void muse_link_reset_setup(void);
 /* The first saved network, owned by Link. Return false when Link hasn't registered. */

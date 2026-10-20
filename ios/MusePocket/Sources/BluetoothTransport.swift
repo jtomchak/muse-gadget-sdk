@@ -459,7 +459,7 @@ final class BluetoothTransport: NSObject, @preconcurrency CBCentralManagerDelega
     return try await withCheckedThrowingContinuation { continuation in
       pending = (envelope.id, continuation)
       timeout = Task {
-        try? await Task.sleep(for: .seconds(35))
+        try? await Task.sleep(for: .seconds(method == "muse.authorize" ? 90 : 35))
         guard !Task.isCancelled, self.pending?.id == envelope.id else { return }
         self.pending?.continuation.resume(throwing: PocketError.timeout)
         self.pending = nil
