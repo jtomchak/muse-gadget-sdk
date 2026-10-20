@@ -44,6 +44,7 @@ static SemaphoreHandle_t s_call_done;
 static void (*s_call)(void *);
 static void *s_call_arg;
 static SemaphoreHandle_t s_chunk_free;   /* internal buffers not on the wire */
+static SemaphoreHandle_t s_band_done;    /* completion retained until LVGL waits */
 static uint8_t *s_chunk[2];
 static size_t s_chunk_bytes;
 static int s_chunks_out;                 /* of the band being sent */
@@ -65,8 +66,19 @@ static bool IRAM_ATTR on_chunk_sent(esp_lcd_panel_io_handle_t io, esp_lcd_panel_
     (void)ctx;
     BaseType_t woken = pdFALSE;
     xSemaphoreGiveFromISR(s_chunk_free, &woken);
-    bool yield = chunk_done() && esp_lv_adapter_display_notify_color_trans_done_from_isr(s_disp);
-    return yield || woken == pdTRUE;
+    if (chunk_done())
+        xSemaphoreGiveFromISR(s_band_done, &woken);
+    return woken == pdTRUE;
+}
+
+/* LVGL clears its flushing flag after this callback returns. Retaining the
+ * completion in a semaphore handles an ISR arriving before the wait starts,
+ * and avoids spinning the UI core or routing readiness through adapter lookup.
+ * Never release LVGL's source buffer before every DMA chunk has completed. */
+static void wait_for_band(lv_display_t *disp)
+{
+    (void)disp;
+    xSemaphoreTake(s_band_done, portMAX_DELAY);
 }
 
 static esp_err_t queue_band(lv_display_t *disp, esp_lcd_panel_handle_t panel, int x1, int y1, int x2, int y2,
@@ -100,7 +112,9 @@ static void send_bands(void *arg)
         int rows = s_chunk_bytes / row & ~1;
         /* LVGL sends no more until this band is done, so nothing is still
          * counting down. */
+        portENTER_CRITICAL_SAFE(&s_lock);
         s_chunks_out = (b.y2 - b.y1 + rows - 1) / rows;
+        portEXIT_CRITICAL_SAFE(&s_lock);
         for (int y = b.y1; y < b.y2; y += rows) {
             int h = b.y2 - y < rows ? b.y2 - y : rows;
             xSemaphoreTake(s_chunk_free, portMAX_DELAY);
@@ -109,7 +123,7 @@ static void send_bands(void *arg)
             if (err != ESP_OK) {
                 xSemaphoreGive(s_chunk_free);
                 if (chunk_done()) {
-                    lv_display_flush_ready(s_disp);
+                    xSemaphoreGive(s_band_done);
                 }
             }
             k ^= 1;
@@ -128,9 +142,10 @@ lv_display_t *muse_lcd_bands_register(esp_lv_adapter_display_config_t cfg, int l
     s_call_lock = xSemaphoreCreateMutex();
     s_call_done = xSemaphoreCreateBinary();
     s_chunk_free = xSemaphoreCreateCounting(2, 2);
+    s_band_done = xSemaphoreCreateBinary();
     s_chunk[0] = heap_caps_malloc(chunk_bytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
     s_chunk[1] = heap_caps_malloc(chunk_bytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
-    if (!s_bands || !s_call_lock || !s_call_done || !s_chunk_free || !s_chunk[0] || !s_chunk[1] ||
+    if (!s_bands || !s_call_lock || !s_call_done || !s_chunk_free || !s_band_done || !s_chunk[0] || !s_chunk[1] ||
         xTaskCreatePinnedToCore(send_bands, "lcd_send", 2560, NULL, MUSE_UI_PRIORITY + 1, NULL, MUSE_UI_CORE) != pdPASS) {
         return NULL;
     }
@@ -148,6 +163,7 @@ lv_display_t *muse_lcd_bands_register(esp_lv_adapter_display_config_t cfg, int l
     lv_display_set_color_format(s_disp, LV_COLOR_FORMAT_RGB565_SWAPPED);
     const esp_lv_adapter_draw_bitmap_callbacks_t draw_cbs = { .custom_draw_bitmap = queue_band };
     esp_lv_adapter_set_draw_bitmap_callbacks(s_disp, &draw_cbs, NULL);
+    lv_display_set_flush_wait_cb(s_disp, wait_for_band);
     return s_disp;
 }
 
