@@ -15,12 +15,16 @@ import XCTest
     }
     let assistant = AssistantService(preferences: preferences, inboxDirectory: directory)
     assistant.museHost = UUID().uuidString.lowercased() + ".fixture.invalid"
+    var reportedFailure: String?
+    assistant.onFailure = { reportedFailure = $0 }
     assistant.deliver = { _, _ in XCTFail("No credentials must mean no reply delivery") }
     await assistant.receive([Int16](repeating: 120, count: 4800))
     if let note = assistant.inbox.first { await assistant.process(note) }
     XCTAssertEqual(assistant.inbox.count, 1)
     XCTAssertTrue(assistant.lastReply.isEmpty)
     XCTAssertTrue(assistant.status.contains("credentials"))
+    XCTAssertEqual(reportedFailure, assistant.status)
+    XCTAssertTrue(reportedFailure?.contains("note remains") == true)
   }
   func testMuseInboxNativeSpeechAndCachedDeliveryRetry() async throws {
     guard let port = ProcessInfo.processInfo.environment["MUSE_TEST_PORT"] else {

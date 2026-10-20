@@ -40,6 +40,7 @@ struct VoiceNote: Codable, Identifiable {
   @ObservationIgnored private let museClient: MuseVoiceClient?
   @ObservationIgnored private let museCredential: ((String) -> String?)?
   @ObservationIgnored private var activeMuseTask: Task<String, Error>?
+  @ObservationIgnored var onFailure: ((String) -> Void)?
   @ObservationIgnored var deliver: ((String, [Int16]?) async throws -> Void)?
   init(
     preferences: UserDefaults = .standard, inboxDirectory: URL? = nil,
@@ -108,7 +109,11 @@ struct VoiceNote: Codable, Identifiable {
       } else {
         status = "Open MusePocket to process the saved voice note."
       }
-    } catch { status = error.localizedDescription }
+    } catch { reportFailure(error.localizedDescription) }
+  }
+  private func reportFailure(_ message: String) {
+    status = message
+    onFailure?(message)
   }
   func delete(_ note: VoiceNote) {
     try? FileManager.default.removeItem(at: directory.appendingPathComponent(note.filename))
@@ -146,7 +151,9 @@ struct VoiceNote: Codable, Identifiable {
       }
       try await finish(reply)
       delete(note)
-    } catch { status = error.localizedDescription + " The note remains in your inbox." }
+    } catch {
+      reportFailure(error.localizedDescription + " The note remains in your inbox.")
+    }
   }
   func ask(_ text: String) async {
     guard !busy, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
@@ -163,7 +170,7 @@ struct VoiceNote: Codable, Identifiable {
         reply = try await local(text)
       }
       try await finish(reply)
-    } catch { status = error.localizedDescription }
+    } catch { reportFailure(error.localizedDescription) }
   }
   private func local(_ text: String) async throws -> String {
     #if canImport(FoundationModels)

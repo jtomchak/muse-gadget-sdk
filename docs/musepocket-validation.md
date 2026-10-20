@@ -1,5 +1,23 @@
 # MusePocket validation
 
+## 2026-10-20 received voice and authentication blocker
+
+After the Base64 fix, the physical iPhone capture received all fragments and
+assembled the complete 32,000-byte recording through `voice.end`, with contiguous
+chunk offsets and no packet error. The user confirmed the recording appeared
+with a Process button, then reported the status `Configure Muse voice credentials
+in Assistant first`. This verifies the board-to-phone BLE audio path. It does
+not verify cloud transcription or reply delivery: the companion has no configured
+Muse account/device credential, and official Muse gadget pairing does not
+currently provision the companion's Keychain.
+
+Voice processing failures now propagate to the app's existing alert, and a
+persistent transfer-status button opens Assistant from any tab while a recording
+is queued or processing. Missing credentials leave the recording intact. The two
+native MuseAssistantTests passed, including independent SDK fixture reply/audio
+and cached retry, and an assertion that a missing credential reports the failure.
+These fixture results are separate from the still-blocked live Muse request.
+
 ## 2026-10-20 Bluetooth voice chunk encoding
 
 With Moe's Wi-Fi off, the user reported `A Bluetooth packet was missing` while
@@ -26,8 +44,8 @@ hash-verified, preserved NVS, and the post-flash heartbeat showed no panic marke
 Debug 0.1.0 (12) was signed with personal team NSLC4354J7 and installed on
 MeowSuperMax as requested. Packet diagnostics require the explicit launch
 environment `MUSE_BLE_DIAGNOSTICS=1`; they log indexes, counts and offsets,
-never audio contents or credentials. Physical retry with the fixed firmware
-and complete cellular Muse voice acceptance remain pending.
+never audio contents or credentials. Physical board-to-phone retry succeeded as
+recorded above; complete cellular Muse voice acceptance awaits authentication.
 
 ## 2026-10-20 Release install and bonded reconnect
 

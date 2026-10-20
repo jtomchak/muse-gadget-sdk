@@ -21,6 +21,7 @@ import Observation
     bluetooth.onReady = { [weak self] in Task { await self?.refresh() } }
     bluetooth.onEvent = { [weak self] event in self?.event(event) }
     bluetooth.onDisconnect = { [weak self] in self?.record("Bluetooth disconnected") }
+    assistant.onFailure = { [weak self] message in self?.error = message }
     assistant.deliver = { [weak self] text, pcm in
       guard let self else { throw PocketError.disconnected }
       try await self.deliverReply(text, pcm: pcm)

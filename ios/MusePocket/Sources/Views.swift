@@ -33,6 +33,16 @@ struct PocketRootView: View {
           Label("Settings", systemImage: "slider.horizontal.3")
         }.tag(4)
       }.tint(.pocketPurple)
+      if store.assistant.busy || !store.assistant.inbox.isEmpty {
+        Button { tab = 3 } label: {
+          HStack(spacing: 8) {
+            if store.assistant.busy { ProgressView() }
+            Text(store.assistant.status).multilineTextAlignment(.leading)
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+          }.font(.caption).padding(12)
+        }.accessibilityIdentifier("assistant.transferStatus")
+      }
       Group {
         if store.busy {
           ProgressView("Waiting for Moe’s acknowledgement…")
